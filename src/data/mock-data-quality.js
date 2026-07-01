@@ -34,12 +34,12 @@ export const mockDataQualitySources = [
   {
     sourceId: "mock_congress_disclosures",
     datasetName: "Disclosure Congresso",
-    freshness: "Non ancora implementato",
-    completeness: "0%",
-    reliabilityTier: "Non disponibile",
-    lastFetchedAt: "n/d",
-    dataAsOf: "n/d",
+    freshness: "Mock disponibile",
+    completeness: "85%",
+    reliabilityTier: "Mock educational",
+    lastFetchedAt: "2026-06-30",
+    dataAsOf: "2026-06-30",
     knownIssues:
-      "La sezione sarà implementata in una fase successiva con parsing e normalizzazione dedicati."
+      "La sezione usa dati mock. In una fase successiva serviranno ingestion, parsing, normalizzazione e entity resolution da fonti ufficiali."
   }
 ];

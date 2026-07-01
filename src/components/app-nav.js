@@ -13,6 +13,10 @@ export function renderAppNav(currentView) {
       label: "Technical Patterns"
     },
     {
+      id: "congress-disclosures",
+      label: "Congress Disclosures"
+    },
+    {
       id: "data-quality",
       label: "Data Quality"
     }

@@ -5,6 +5,7 @@ import { renderDashboard } from "./pages/dashboard.js";
 import { renderSecurityDetail } from "./pages/security-detail.js";
 import { renderPeerComparePage } from "./pages/peer-compare.js";
 import { renderTechnicalPatternsPage } from "./pages/technical-patterns.js";
+import { renderCongressDisclosuresPage } from "./pages/congress-disclosures.js";
 import { renderDataQualityPanelPage } from "./pages/data-quality-panel.js";
 import { mockSecurities } from "./data/mock-securities.js";
 
@@ -49,6 +50,10 @@ function renderCurrentView() {
 
   if (currentView === "technical-patterns") {
     return renderTechnicalPatternsPage();
+  }
+
+  if (currentView === "congress-disclosures") {
+    return renderCongressDisclosuresPage();
   }
 
   if (currentView === "data-quality") {
