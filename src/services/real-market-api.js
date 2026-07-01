@@ -1,5 +1,10 @@
-export async function fetchRealQuote(symbol) {
-  const response = await fetch(`/api/market/quote?symbol=${encodeURIComponent(symbol)}`);
+export async function fetchRealQuote(symbol, provider = "fmp") {
+  const params = new URLSearchParams({
+    symbol,
+    provider
+  });
+
+  const response = await fetch(`/api/market/quote?${params.toString()}`);
 
   if (!response.ok) {
     const errorPayload = await safeReadJson(response);
