@@ -1,6 +1,7 @@
 import "./style.css";
 import { renderDisclaimerBanner } from "./components/disclaimer-banner.js";
 import { renderAppNav } from "./components/app-nav.js";
+import { renderHomeOverviewPage } from "./pages/home-overview.js";
 import { renderDashboard } from "./pages/dashboard.js";
 import { renderSecurityDetail } from "./pages/security-detail.js";
 import { renderPeerComparePage } from "./pages/peer-compare.js";
@@ -11,7 +12,7 @@ import { mockSecurities } from "./data/mock-securities.js";
 
 const app = document.querySelector("#app");
 
-let currentView = "dashboard";
+let currentView = "home";
 let selectedTicker = null;
 
 window.navigateTo = function navigateTo(viewId) {
@@ -33,6 +34,10 @@ window.goToDashboard = function goToDashboard() {
 };
 
 function renderCurrentView() {
+  if (currentView === "home") {
+    return renderHomeOverviewPage();
+  }
+
   if (currentView === "security-detail") {
     const security = mockSecurities.find((item) => item.ticker === selectedTicker);
 

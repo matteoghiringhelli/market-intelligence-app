@@ -1,6 +1,10 @@
 export function renderAppNav(currentView) {
   const items = [
     {
+      id: "home",
+      label: "Home"
+    },
+    {
       id: "dashboard",
       label: "Dashboard"
     },
