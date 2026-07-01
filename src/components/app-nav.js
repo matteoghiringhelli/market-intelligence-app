@@ -9,6 +9,10 @@ export function renderAppNav(currentView) {
       label: "Dashboard"
     },
     {
+      id: "real-data-test",
+      label: "Real Data Test"
+    },
+    {
       id: "peer-compare",
       label: "Peer Compare"
     },

@@ -329,3 +329,46 @@
     min-height: auto;
   }
 }
+
+.real-data-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.real-quote-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 22px;
+  padding: 18px;
+  background: #ffffff;
+}
+
+.real-quote-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.real-quote-card h3 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.real-quote-grid {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+@media (max-width: 900px) {
+  .real-data-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .real-quote-card__header {
+    flex-direction: column;
+  }
+}
