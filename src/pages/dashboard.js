@@ -1,5 +1,9 @@
 import { mockSecurities } from "../data/mock-securities.js";
 import { fetchRealQuote } from "../services/real-market-api.js";
+import {
+  setRealDataStatus,
+  resetRealDataStatus
+} from "../state/real-data-status.js";
 
 let dashboardProvider = "fmp";
 let dashboardQuotes = {};
@@ -220,6 +224,18 @@ export function renderDashboard() {
 window.setDashboardProvider = function setDashboardProvider(provider) {
   dashboardProvider = provider;
   dashboardError = null;
+
+  setRealDataStatus({
+    status: "mock",
+    label: "Mock only",
+    provider: dashboardProvider,
+    sourceId: "mock",
+    lastUpdatedAt: dashboardLastUpdate,
+    loadedSymbols: Object.keys(dashboardQuotes),
+    message:
+      "Provider selezionato per il prossimo caricamento reale. La Dashboard sta ancora mostrando dati mock o dati precedentemente caricati."
+  });
+
   refreshDashboardPanel();
 };
 
@@ -227,12 +243,27 @@ window.clearDashboardRealQuotes = function clearDashboardRealQuotes() {
   dashboardQuotes = {};
   dashboardError = null;
   dashboardLastUpdate = null;
+
+  resetRealDataStatus();
+
   refreshDashboardPanel();
 };
 
 window.refreshDashboardRealQuotes = async function refreshDashboardRealQuotes() {
   dashboardLoading = true;
   dashboardError = null;
+
+  setRealDataStatus({
+    status: "loading",
+    label: "Loading",
+    provider: dashboardProvider,
+    sourceId: dashboardProvider,
+    lastUpdatedAt: new Date().toISOString(),
+    loadedSymbols: [],
+    message:
+      "Caricamento quote reali in corso tramite route multi-provider. Le richieste vengono eseguite una alla volta."
+  });
+
   refreshDashboardPanel();
 
   const nextQuotes = {};
@@ -245,8 +276,33 @@ window.refreshDashboardRealQuotes = async function refreshDashboardRealQuotes() 
 
     dashboardQuotes = nextQuotes;
     dashboardLastUpdate = new Date().toISOString();
+
+    const sourceId = Object.values(nextQuotes)[0]?.source_id || dashboardProvider;
+
+    setRealDataStatus({
+      status: "loaded",
+      label: "Real data loaded",
+      provider: dashboardProvider,
+      sourceId,
+      lastUpdatedAt: dashboardLastUpdate,
+      loadedSymbols: Object.keys(nextQuotes),
+      message:
+        "Quote reali caricate correttamente dalla Dashboard. I dati includono fonte, timestamp, data di riferimento e completezza."
+    });
   } catch (error) {
     dashboardError = error.message;
+
+    setRealDataStatus({
+      status: "error",
+      label: "API error",
+      provider: dashboardProvider,
+      sourceId: dashboardProvider,
+      lastUpdatedAt: new Date().toISOString(),
+      loadedSymbols: Object.keys(nextQuotes),
+      message:
+        error.message ||
+        "Errore durante il caricamento delle quote reali. La Dashboard resta disponibile con dati mock."
+    });
   } finally {
     dashboardLoading = false;
     refreshDashboardPanel();

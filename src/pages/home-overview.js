@@ -1,9 +1,11 @@
+import { getRealDataStatus } from "../state/real-data-status.js";
+
 const overviewCards = [
   {
     title: "Market Dashboard",
     eyebrow: "Securities",
     description:
-      "Consulta una lista mock di titoli azionari con settore, industria, fonte, qualità dati e scheda descrittiva.",
+      "Consulta una lista di titoli azionari con settore, industria, fonte, qualità dati e quote reali on-demand.",
     primaryActionLabel: "Apri Dashboard",
     primaryView: "dashboard",
     meta: "Titoli · Fonte · Completezza"
@@ -32,7 +34,7 @@ const overviewCards = [
     title: "Data Quality & Governance",
     eyebrow: "Trust Layer",
     description:
-      "Controlla freschezza, completezza, fonte, data di riferimento e problemi noti dei dataset mock.",
+      "Controlla freschezza, completezza, fonte, data di riferimento e problemi noti dei dataset mock e reali.",
     primaryActionLabel: "Apri Data Quality",
     primaryView: "data-quality",
     meta: "Freshness · Completeness · Audit"
@@ -79,6 +81,72 @@ function renderOverviewCard(card) {
   `;
 }
 
+function getRealDataStatusBadgeClass(status) {
+  if (status.status === "loaded") {
+    return "quality-badge--ok";
+  }
+
+  if (status.status === "loading") {
+    return "quality-badge--neutral";
+  }
+
+  if (status.status === "error") {
+    return "quality-badge--danger";
+  }
+
+  return "quality-badge--warning";
+}
+
+function renderRealDataStatusIndicator() {
+  const realDataStatus = getRealDataStatus();
+  const badgeClass = getRealDataStatusBadgeClass(realDataStatus);
+  const symbolsText =
+    realDataStatus.loadedSymbols && realDataStatus.loadedSymbols.length
+      ? realDataStatus.loadedSymbols.join(", ")
+      : "nessun ticker reale caricato";
+
+  return `
+    <section class="real-data-status-card">
+      <div class="real-data-status-card__header">
+        <div>
+          <p class="eyebrow">Real Data Layer</p>
+          <h3>Stato dati reali</h3>
+        </div>
+
+        <span class="quality-badge ${badgeClass}">
+          ${realDataStatus.label}
+        </span>
+      </div>
+
+      <div class="real-data-status-grid">
+        <div>
+          <p class="metric-label">Provider</p>
+          <strong>${realDataStatus.provider || "none"}</strong>
+        </div>
+
+        <div>
+          <p class="metric-label">Fonte</p>
+          <strong>${realDataStatus.sourceId || "mock"}</strong>
+        </div>
+
+        <div>
+          <p class="metric-label">Ticker caricati</p>
+          <strong>${symbolsText}</strong>
+        </div>
+
+        <div>
+          <p class="metric-label">Ultimo aggiornamento</p>
+          <strong>${realDataStatus.lastUpdatedAt || "n/d"}</strong>
+        </div>
+      </div>
+
+      <section class="audit-box">
+        <p><strong>Messaggio:</strong> ${realDataStatus.message}</p>
+      </section>
+    </section>
+  `;
+}
+
 export function renderHomeOverviewPage() {
   const cards = overviewCards.map(renderOverviewCard).join("");
 
@@ -89,28 +157,30 @@ export function renderHomeOverviewPage() {
         <h1>Home Overview</h1>
         <p class="subtitle">
           Vista iniziale della Market Intelligence App. Le quattro aree sotto
-          riassumono lo stato del frontend mock prima di collegare fonti dati reali.
+          riassumono lo stato del frontend e il nuovo layer dati reali.
         </p>
       </div>
     </header>
 
     <section class="home-hero panel">
       <div>
-        <p class="eyebrow">MVP 0.4 Cloud-only</p>
-        <h2>Frontend mock completo</h2>
+        <p class="eyebrow">Cloud-only MVP</p>
+        <h2>Frontend mock + real data layer</h2>
         <p>
-          Questa versione usa solo GitHub, Codespaces e Vercel. I dati sono mock
-          e servono per validare architettura informativa, navigazione, copy,
-          disclaimer e componenti principali.
+          Questa versione usa GitHub, Codespaces e Vercel. I dati mock restano
+          disponibili come fallback, mentre le quote reali vengono caricate on-demand
+          dalla Dashboard tramite route multi-provider.
         </p>
       </div>
 
       <div class="home-hero__status">
-        <span class="quality-badge quality-badge--ok">Online-ready</span>
-        <span class="quality-badge quality-badge--neutral">Mock data</span>
-        <span class="quality-badge quality-badge--warning">No real data yet</span>
+        <span class="quality-badge quality-badge--ok">Vercel API</span>
+        <span class="quality-badge quality-badge--neutral">Multi-provider</span>
+        <span class="quality-badge quality-badge--warning">On-demand only</span>
       </div>
     </section>
+
+    ${renderRealDataStatusIndicator()}
 
     <section class="overview-grid">
       ${cards}

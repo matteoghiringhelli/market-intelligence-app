@@ -496,3 +496,44 @@
     justify-items: start;
   }
 }
+
+.real-data-status-card {
+  margin: 20px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.06);
+}
+
+.real-data-status-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.real-data-status-card h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.real-data-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+
+@media (max-width: 900px) {
+  .real-data-status-card__header {
+    flex-direction: column;
+  }
+
+  .real-data-status-grid {
+    grid-template-columns: 1fr;
+  }
+}
