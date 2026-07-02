@@ -619,3 +619,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+.technical-patterns-detail-section {
+  display: grid;
+  gap: 18px;
+}
+
+.security-pattern-card {
+  background:
+    radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 34%),
+    #ffffff;
+}
+
+.security-pattern-card .description-box {
+  margin-top: 14px;
+}
