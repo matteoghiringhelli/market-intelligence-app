@@ -1,4 +1,5 @@
 import { getRealDataStatus } from "../state/real-data-status.js";
+import { fetchDataQualityOverview } from "../services/data-quality-api.js";
 
 const overviewCards = [
   {
@@ -147,7 +148,78 @@ function renderRealDataStatusIndicator() {
   `;
 }
 
+function renderMarketSnapshotShell() {
+  return `
+    <section class="market-snapshot-card">
+      <div class="market-snapshot-card__header">
+        <div>
+          <p class="eyebrow">Market Snapshot</p>
+          <h3>Stato backend Supabase</h3>
+          <p class="muted-text">
+            Sintesi dei dati storici, pattern tecnici e ingestion run già presenti
+            nel data layer persistente.
+          </p>
+        </div>
+
+        <button
+          class="secondary-button market-snapshot-card__button"
+          type="button"
+          onclick="loadMarketSnapshot()"
+        >
+          Aggiorna snapshot
+        </button>
+      </div>
+
+      <div id="market-snapshot-status" class="description-box">
+        Snapshot non ancora caricato in questa vista.
+      </div>
+
+      <div id="market-snapshot-content">
+        ${renderEmptyMarketSnapshot()}
+      </div>
+    </section>
+  `;
+}
+
+function renderEmptyMarketSnapshot() {
+  return `
+    <div class="market-snapshot-grid">
+      <article class="metric-card">
+        <p class="metric-label">Titoli con storico</p>
+        <h3>n/d</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Record storici</p>
+        <h3>n/d</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Titoli con pattern</p>
+        <h3>n/d</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Pattern disponibili</p>
+        <h3>n/d</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Ultimo ingestion run</p>
+        <h3>n/d</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Stato ultimo run</p>
+        <h3>n/d</h3>
+      </article>
+    </div>
+  `;
+}
+
 export function renderHomeOverviewPage() {
+  setTimeout(loadMarketSnapshot, 0);
+
   const cards = overviewCards.map(renderOverviewCard).join("");
 
   return `
@@ -156,8 +228,8 @@ export function renderHomeOverviewPage() {
         <p class="eyebrow">Educational Market Intelligence</p>
         <h1>Home Overview</h1>
         <p class="subtitle">
-          Vista iniziale della Market Intelligence App. Le quattro aree sotto
-          riassumono lo stato del frontend e il nuovo layer dati reali.
+          Vista iniziale della Market Intelligence App. Le aree sotto
+          riassumono il frontend, il Real Data Layer e lo stato del backend Supabase.
         </p>
       </div>
     </header>
@@ -165,22 +237,24 @@ export function renderHomeOverviewPage() {
     <section class="home-hero panel">
       <div>
         <p class="eyebrow">Cloud-only MVP</p>
-        <h2>Frontend mock + real data layer</h2>
+        <h2>Frontend mock + Supabase data layer</h2>
         <p>
-          Questa versione usa GitHub, Codespaces e Vercel. I dati mock restano
-          disponibili come fallback, mentre le quote reali vengono caricate on-demand
-          dalla Dashboard tramite route multi-provider.
+          Questa versione usa GitHub, Codespaces, Vercel e Supabase. I dati mock restano
+          disponibili come fallback, mentre storico, pattern tecnici e data quality
+          vengono progressivamente letti dal backend persistente.
         </p>
       </div>
 
       <div class="home-hero__status">
-        <span class="quality-badge quality-badge--ok">Vercel API</span>
-        <span class="quality-badge quality-badge--neutral">Multi-provider</span>
-        <span class="quality-badge quality-badge--warning">On-demand only</span>
+        <span class="quality-badge quality-badge--ok">Single API Router</span>
+        <span class="quality-badge quality-badge--neutral">Supabase</span>
+        <span class="quality-badge quality-badge--warning">On-demand</span>
       </div>
     </section>
 
     ${renderRealDataStatusIndicator()}
+
+    ${renderMarketSnapshotShell()}
 
     <section class="overview-grid">
       ${cards}
@@ -193,4 +267,190 @@ export function renderHomeOverviewPage() {
       operative o segnali di trading.
     </section>
   `;
+}
+
+window.loadMarketSnapshot = async function loadMarketSnapshot() {
+  const statusEl = document.querySelector("#market-snapshot-status");
+  const contentEl = document.querySelector("#market-snapshot-content");
+
+  if (!statusEl || !contentEl) {
+    return;
+  }
+
+  statusEl.innerHTML = `
+    <p>Caricamento Market Snapshot da Supabase...</p>
+  `;
+
+  try {
+    const payload = await fetchDataQualityOverview();
+    const data = payload.data;
+
+    const snapshot = buildMarketSnapshot(data);
+
+    statusEl.innerHTML = `
+      <p>
+        Market Snapshot aggiornato da Supabase.
+        Generated at: <strong>${formatValue(data.generated_at)}</strong>.
+      </p>
+    `;
+
+    contentEl.innerHTML = renderMarketSnapshot(snapshot);
+  } catch (error) {
+    statusEl.innerHTML = `
+      <p><strong>Errore caricamento Market Snapshot:</strong> ${error.message}</p>
+      <p>
+        La Home resta disponibile. Verifica <code>/api/market/data-quality-db</code>,
+        Supabase e il singolo router Vercel.
+      </p>
+    `;
+
+    contentEl.innerHTML = renderEmptyMarketSnapshot();
+  }
+};
+
+function buildMarketSnapshot(data) {
+  const priceRows = data?.price_history_summary?.rows || [];
+  const patternSummaryRows =
+    data?.technical_patterns_summary?.summary_by_ticker || [];
+  const patternRows = data?.technical_patterns_summary?.rows || [];
+  const ingestionRuns = data?.latest_ingestion_runs?.rows || [];
+
+  const latestIngestionRun = ingestionRuns[0] || null;
+
+  const totalHistoricalRecords = priceRows.reduce((sum, row) => {
+    return sum + Number(row.records_count || 0);
+  }, 0);
+
+  const totalPatterns = patternSummaryRows.reduce((sum, row) => {
+    return sum + Number(row.patterns_count || 0);
+  }, 0);
+
+  const latestHistoryDate = priceRows.reduce((latest, row) => {
+    if (!row.latest_date) {
+      return latest;
+    }
+
+    if (!latest || new Date(row.latest_date) > new Date(latest)) {
+      return row.latest_date;
+    }
+
+    return latest;
+  }, null);
+
+  const latestPatternComputedAt = patternRows.reduce((latest, row) => {
+    if (!row.computed_at) {
+      return latest;
+    }
+
+    if (!latest || new Date(row.computed_at) > new Date(latest)) {
+      return row.computed_at;
+    }
+
+    return latest;
+  }, null);
+
+  return {
+    securitiesWithHistory: priceRows.length,
+    totalHistoricalRecords,
+    securitiesWithPatterns: patternSummaryRows.length,
+    totalPatterns,
+    latestHistoryDate,
+    latestPatternComputedAt,
+    latestIngestionJob: latestIngestionRun?.job_name || null,
+    latestIngestionStatus: latestIngestionRun?.status || null,
+    latestIngestionStartedAt: latestIngestionRun?.started_at || null,
+    latestIngestionFinishedAt: latestIngestionRun?.finished_at || null
+  };
+}
+
+function renderMarketSnapshot(snapshot) {
+  const ingestionBadgeClass =
+    snapshot.latestIngestionStatus === "completed"
+      ? "quality-badge--ok"
+      : snapshot.latestIngestionStatus === "completed_with_errors"
+        ? "quality-badge--warning"
+        : snapshot.latestIngestionStatus
+          ? "quality-badge--danger"
+          : "quality-badge--neutral";
+
+  return `
+    <div class="market-snapshot-grid">
+      <article class="metric-card">
+        <p class="metric-label">Titoli con storico</p>
+        <h3>${formatValue(snapshot.securitiesWithHistory)}</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Record storici</p>
+        <h3>${formatNumber(snapshot.totalHistoricalRecords)}</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Titoli con pattern</p>
+        <h3>${formatValue(snapshot.securitiesWithPatterns)}</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Pattern disponibili</p>
+        <h3>${formatNumber(snapshot.totalPatterns)}</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Ultima data storico</p>
+        <h3>${formatValue(snapshot.latestHistoryDate)}</h3>
+      </article>
+
+      <article class="metric-card">
+        <p class="metric-label">Ultimo pattern computed</p>
+        <h3>${formatValue(snapshot.latestPatternComputedAt)}</h3>
+      </article>
+    </div>
+
+    <section class="market-snapshot-ingestion">
+      <div>
+        <p class="metric-label">Ultimo ingestion run</p>
+        <h3>${formatValue(snapshot.latestIngestionJob)}</h3>
+        <p class="muted-text">
+          Started: ${formatValue(snapshot.latestIngestionStartedAt)}
+          · Finished: ${formatValue(snapshot.latestIngestionFinishedAt)}
+        </p>
+      </div>
+
+      <span class="quality-badge ${ingestionBadgeClass}">
+        ${formatValue(snapshot.latestIngestionStatus)}
+      </span>
+    </section>
+
+    <section class="audit-box">
+      <p>
+        <strong>Lettura descrittiva:</strong>
+        lo snapshot mostra solo disponibilità, freschezza e copertura dei dati.
+        Non produce valutazioni finanziarie o segnali operativi.
+      </p>
+    </section>
+  `;
+}
+
+function formatValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "n/d";
+  }
+
+  return value;
+}
+
+function formatNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return "n/d";
+  }
+
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) {
+    return value;
+  }
+
+  return new Intl.NumberFormat("it-IT", {
+    maximumFractionDigits: 0
+  }).format(numberValue);
 }
