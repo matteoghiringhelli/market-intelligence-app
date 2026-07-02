@@ -154,6 +154,8 @@ export function renderSecurityDetail(security) {
           Pattern tecnici non ancora caricati per ${security.ticker}.
         </div>
 
+        <div id="security-technical-insight-summary"></div>
+
         <div id="security-patterns-stack" class="stack"></div>
       </section>
 
@@ -234,6 +236,7 @@ window.loadSecurityHistory = async function loadSecurityHistory(symbol) {
 
 window.loadSecurityTechnicalPatterns = async function loadSecurityTechnicalPatterns(symbol) {
   const statusEl = document.querySelector("#security-patterns-status");
+  const insightEl = document.querySelector("#security-technical-insight-summary");
   const stackEl = document.querySelector("#security-patterns-stack");
 
   if (!statusEl || !stackEl) {
@@ -260,6 +263,11 @@ window.loadSecurityTechnicalPatterns = async function loadSecurityTechnicalPatte
           <code>/api/jobs/detect-technical-patterns?symbols=${symbol}&limit=260&secret=...</code>
         </p>
       `;
+
+      if (insightEl) {
+        insightEl.innerHTML = renderEmptyTechnicalInsightSummary(symbol);
+      }
+
       return;
     }
 
@@ -269,6 +277,10 @@ window.loadSecurityTechnicalPatterns = async function loadSecurityTechnicalPatte
         Pattern disponibili: <strong>${patterns.length}</strong>.
       </p>
     `;
+
+    if (insightEl) {
+      insightEl.innerHTML = renderTechnicalInsightSummary(patterns);
+    }
 
     stackEl.innerHTML = patterns.map(renderSecurityPatternCard).join("");
 
@@ -955,4 +967,110 @@ function renderCloseMiniChart(records) {
 
 function roundSvg(value) {
   return Math.round(Number(value) * 100) / 100;
+}
+
+function renderTechnicalInsightSummary(patterns) {
+  const normalizedPatterns = [...patterns].sort((a, b) => {
+    const dateA = new Date(a.computed_at || a.detected_at || a.window_end || 0);
+    const dateB = new Date(b.computed_at || b.detected_at || b.window_end || 0);
+
+    return dateB - dateA;
+  });
+
+  const latestPattern = normalizedPatterns[0];
+  const patternNames = normalizedPatterns
+    .map((pattern) => pattern.pattern_name)
+    .filter(Boolean);
+
+  const uniquePatternNames = Array.from(new Set(patternNames));
+
+  return `
+    <section class="technical-insight-summary-card">
+      <div class="technical-insight-summary-card__header">
+        <div>
+          <p class="eyebrow">Technical Insight Summary</p>
+          <h3>Sintesi pattern tecnici</h3>
+          <p class="muted-text">
+            Sintesi descrittiva dei pattern calcolati dal data layer Supabase.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          ${patterns.length} pattern
+        </span>
+      </div>
+
+      <div class="technical-insight-summary-grid">
+        <article class="metric-card">
+          <p class="metric-label">Ultimo pattern</p>
+          <h3>${formatValue(latestPattern?.pattern_name)}</h3>
+        </article>
+
+        <article class="metric-card">
+          <p class="metric-label">Timeframe</p>
+          <h3>${formatValue(latestPattern?.timeframe)}</h3>
+        </article>
+
+        <article class="metric-card">
+          <p class="metric-label">Data rilevazione</p>
+          <h3>${formatValue(latestPattern?.detected_at)}</h3>
+        </article>
+
+        <article class="metric-card">
+          <p class="metric-label">Finestra dati</p>
+          <h3>${formatValue(latestPattern?.window_start)} → ${formatValue(latestPattern?.window_end)}</h3>
+        </article>
+
+        <article class="metric-card">
+          <p class="metric-label">Fonte</p>
+          <h3>${formatValue(latestPattern?.source_id)}</h3>
+        </article>
+
+        <article class="metric-card">
+          <p class="metric-label">Computed at</p>
+          <h3>${formatValue(latestPattern?.computed_at)}</h3>
+        </article>
+      </div>
+
+      <section class="description-box">
+        <p>
+          <strong>Pattern disponibili:</strong>
+          ${uniquePatternNames.length ? uniquePatternNames.join(", ") : "n/d"}.
+        </p>
+      </section>
+
+      <section class="audit-box">
+        <p>
+          <strong>Nota metodologica:</strong>
+          questa sintesi descrive condizioni tecniche osservate sui dati storici disponibili.
+          Non rappresenta una previsione, un segnale operativo o una raccomandazione finanziaria.
+        </p>
+      </section>
+    </section>
+  `;
+}
+
+function renderEmptyTechnicalInsightSummary(symbol) {
+  return `
+    <section class="technical-insight-summary-card technical-insight-summary-card--empty">
+      <div class="technical-insight-summary-card__header">
+        <div>
+          <p class="eyebrow">Technical Insight Summary</p>
+          <h3>Nessun pattern disponibile</h3>
+          <p class="muted-text">
+            Non sono presenti pattern tecnici reali per ${symbol}.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--warning">
+          0 pattern
+        </span>
+      </div>
+
+      <section class="note-box">
+        Esegui il job tecnico per calcolare i pattern:
+        <code>/api/jobs/detect-technical-patterns?symbols=${symbol}&limit=260&secret=...</code>
+      </section>
+    </section>
+  `;
 }

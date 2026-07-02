@@ -1290,3 +1290,64 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   SECURITY DETAIL — TECHNICAL INSIGHT SUMMARY
+   ========================================================= */
+
+.technical-insight-summary-card {
+  margin: 18px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 22px;
+  padding: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.technical-insight-summary-card--empty {
+  background:
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.08), transparent 34%),
+    #ffffff;
+}
+
+.technical-insight-summary-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.technical-insight-summary-card__header h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.technical-insight-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 900px) {
+  .technical-insight-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .technical-insight-summary-card {
+    padding: 16px;
+  }
+
+  .technical-insight-summary-card__header {
+    flex-direction: column;
+  }
+
+  .technical-insight-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
