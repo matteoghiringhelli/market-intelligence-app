@@ -111,6 +111,16 @@ function renderManualOperationsShell() {
         </label>
       </div>
 
+      <label class="manual-operation-confirmation">
+        <input
+          id="manual-operation-confirm"
+          type="checkbox"
+        />
+        <span>
+          Confermo di voler eseguire manualmente job backend usando il CRON_SECRET inserito.
+        </span>
+      </label>
+
       <div class="manual-operations-actions">
         <button
           class="button"
@@ -134,6 +144,14 @@ function renderManualOperationsShell() {
           onclick="runFullManualPipeline()"
         >
           Esegui pipeline completa
+        </button>
+
+        <button
+          class="secondary-button manual-operations-reset-button"
+          type="button"
+          onclick="resetManualOperationsForm()"
+        >
+          Pulisci secret / Reset form
         </button>
       </div>
 
@@ -939,16 +957,25 @@ function getManualOperationParams() {
   const symbolsEl = document.querySelector("#manual-operation-symbols");
   const daysEl = document.querySelector("#manual-operation-days");
   const limitEl = document.querySelector("#manual-operation-limit");
+  const confirmEl = document.querySelector("#manual-operation-confirm");
 
   const secret = String(secretEl?.value || "").trim();
   const symbols = String(symbolsEl?.value || "").trim();
   const days = Number(daysEl?.value || 30);
   const limit = Number(limitEl?.value || 260);
+  const confirmed = Boolean(confirmEl?.checked);
 
   if (!secret) {
     return {
       ok: false,
       message: "Inserisci CRON_SECRET prima di lanciare un job."
+    };
+  }
+
+  if (!confirmed) {
+    return {
+      ok: false,
+      message: "Seleziona la conferma prima di eseguire job manuali."
     };
   }
 
@@ -1021,3 +1048,41 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
+window.resetManualOperationsForm = function resetManualOperationsForm() {
+  const secretEl = document.querySelector("#manual-operation-secret");
+  const symbolsEl = document.querySelector("#manual-operation-symbols");
+  const daysEl = document.querySelector("#manual-operation-days");
+  const limitEl = document.querySelector("#manual-operation-limit");
+  const confirmEl = document.querySelector("#manual-operation-confirm");
+  const resultEl = document.querySelector("#manual-operations-result");
+
+  if (secretEl) {
+    secretEl.value = "";
+  }
+
+  if (symbolsEl) {
+    symbolsEl.value = "AAPL,MSFT,JPM,NVDA,AMZN";
+  }
+
+  if (daysEl) {
+    daysEl.value = "30";
+  }
+
+  if (limitEl) {
+    limitEl.value = "260";
+  }
+
+  if (confirmEl) {
+    confirmEl.checked = false;
+  }
+
+  if (resultEl) {
+    resultEl.innerHTML = "";
+  }
+
+  updateManualOperationsStatus(
+    "Form ripristinato. CRON_SECRET rimosso dalla vista.",
+    "success"
+  );
+};
