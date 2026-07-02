@@ -89,15 +89,29 @@ export async function saveRawIngestionEvent({
 export async function upsertSecuritiesFromHistoryRows(rows) {
   const supabase = getSupabaseAdminClient();
 
-  const securities = rows
-    .map((row) => ({
-      ticker: row.symbol,
-      updated_at: new Date().toISOString()
-    }))
-    .filter((row) => Boolean(row.ticker));
+  const uniqueTickerMap = new Map();
+
+  rows.forEach((row) => {
+    const ticker = String(row.symbol || row.ticker || "").trim().toUpperCase();
+
+    if (!ticker) {
+      return;
+    }
+
+    if (!uniqueTickerMap.has(ticker)) {
+      uniqueTickerMap.set(ticker, {
+        ticker,
+        updated_at: new Date().toISOString()
+      });
+    }
+  });
+
+  const securities = Array.from(uniqueTickerMap.values());
 
   if (!securities.length) {
-    return;
+    return {
+      upserted: 0
+    };
   }
 
   const { error } = await supabase
@@ -109,6 +123,10 @@ export async function upsertSecuritiesFromHistoryRows(rows) {
   if (error) {
     throw new Error(`upsertSecuritiesFromHistoryRows failed: ${error.message}`);
   }
+
+  return {
+    upserted: securities.length
+  };
 }
 
 export async function upsertPriceHistoryRows(rows) {
