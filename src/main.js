@@ -3,8 +3,8 @@ import { renderDisclaimerBanner } from "./components/disclaimer-banner.js";
 import { renderAppNav } from "./components/app-nav.js";
 import { renderHomeOverviewPage } from "./pages/home-overview.js";
 import { renderDashboard } from "./pages/dashboard.js";
-import { renderRealDataTestPage } from "./pages/real-data-test.js";
 import { renderSecurityDetail } from "./pages/security-detail.js";
+import { renderRealDataTestPage } from "./pages/real-data-test.js";
 import { renderPeerComparePage } from "./pages/peer-compare.js";
 import { renderTechnicalPatternsPage } from "./pages/technical-patterns.js";
 import { renderInterpretationGuidePage } from "./pages/interpretation-guide.js";
@@ -61,6 +61,10 @@ function renderCurrentView() {
 
   if (currentView === "technical-patterns") {
     return renderTechnicalPatternsPage();
+  }
+
+  if (currentView === "interpretation-guide") {
+    return renderInterpretationGuidePage();
   }
 
   if (currentView === "congress-disclosures") {
