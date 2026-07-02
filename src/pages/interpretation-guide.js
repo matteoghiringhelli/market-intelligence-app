@@ -3,13 +3,15 @@ import {
   interpretationExamples
 } from "../data/interpretation-guide.js";
 
-function renderGuideSection(section) {
-  const bullets = section.bullets
-    .map((bullet) => {
-      return `<li>${bullet}</li>`;
+function renderList(items) {
+  return items
+    .map((item) => {
+      return `<li>${item}</li>`;
     })
     .join("");
+}
 
+function renderGuideSection(section) {
   return `
     <article class="interpretation-section-card" id="guide-${section.id}">
       <div class="interpretation-section-card__header">
@@ -19,7 +21,7 @@ function renderGuideSection(section) {
         </div>
 
         <span class="quality-badge quality-badge--neutral">
-          Educational
+          Teoria
         </span>
       </div>
 
@@ -27,9 +29,26 @@ function renderGuideSection(section) {
         <p>${section.description}</p>
       </section>
 
-      <ul class="interpretation-list">
-        ${bullets}
-      </ul>
+      <section class="interpretation-theory-box">
+        <p class="metric-label">Interpretazione teorica</p>
+        <p>${section.theoreticalInterpretation}</p>
+      </section>
+
+      <div class="interpretation-two-column">
+        <section>
+          <h4>Come leggerlo</h4>
+          <ul class="interpretation-list">
+            ${renderList(section.howToRead)}
+          </ul>
+        </section>
+
+        <section>
+          <h4>Cosa non concludere automaticamente</h4>
+          <ul class="interpretation-list interpretation-list--warning">
+            ${renderList(section.notToConclude)}
+          </ul>
+        </section>
+      </div>
 
       <section class="audit-box">
         <p><strong>Limite di interpretazione:</strong> ${section.limitation}</p>
@@ -69,7 +88,8 @@ export function renderInterpretationGuidePage() {
         <h1>Interpretation Guide</h1>
         <p class="subtitle">
           Guida teorica per leggere pattern tecnici, fondamentali, peer comparison
-          e qualità del dato in modo descrittivo e non consulenziale.
+          e qualità del dato secondo i framework normalmente usati nell'analisi
+          finanziaria, senza trasformare la lettura in raccomandazione operativa.
         </p>
       </div>
     </header>
@@ -79,17 +99,18 @@ export function renderInterpretationGuidePage() {
         <div>
           <h2>Come interpretare i dati</h2>
           <p>
-            Questa pagina spiega il significato dei principali blocchi analitici
-            dell'app e chiarisce i limiti di interpretazione.
+            Questa pagina spiega non solo cosa misura un indicatore, ma anche
+            come viene normalmente interpretato nella teoria finanziaria e quali
+            conclusioni non bisogna trarre automaticamente.
           </p>
         </div>
       </div>
 
       <section class="note-box">
         <strong>Regola fondamentale:</strong>
-        la guida non fornisce consulenza finanziaria, segnali operativi,
-        raccomandazioni buy/sell o indicazioni personalizzate. Serve solo a
-        leggere correttamente dati descrittivi.
+        questa guida offre interpretazioni teoriche ed educative. Non fornisce
+        consulenza finanziaria, segnali operativi, raccomandazioni buy/sell o
+        indicazioni personalizzate.
       </section>
 
       <div class="interpretation-grid">
@@ -99,8 +120,8 @@ export function renderInterpretationGuidePage() {
       <section class="detail-section">
         <h3>Esempi di linguaggio corretto</h3>
         <p class="muted-text">
-          L'app deve privilegiare formulazioni descrittive, evitando termini
-          predittivi, imperativi o persuasivi.
+          L'app può spiegare come la teoria interpreta un indicatore, ma deve
+          evitare formulazioni imperative, predittive o persuasive.
         </p>
 
         <div class="stack">

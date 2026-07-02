@@ -1916,3 +1916,44 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   INTERPRETATION GUIDE — THEORY EXTENSION
+   ========================================================= */
+
+.interpretation-theory-box {
+  margin: 16px 0;
+  border: 1px solid #bfdbfe;
+  border-radius: 18px;
+  padding: 16px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  line-height: 1.6;
+}
+
+.interpretation-theory-box p {
+  margin: 8px 0 0;
+}
+
+.interpretation-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.interpretation-two-column h4 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  color: #172033;
+}
+
+.interpretation-list--warning li {
+  color: #92400e;
+}
+
+@media (max-width: 800px) {
+  .interpretation-two-column {
+    grid-template-columns: 1fr;
+  }
+}
