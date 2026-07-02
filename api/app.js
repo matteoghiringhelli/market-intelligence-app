@@ -4,6 +4,7 @@ const routeLoaders = {
   "market/history-db": () => import("../server/market/history-db.js"),
   "market/technical-patterns-db": () =>
     import("../server/market/technical-patterns-db.js"),
+  "market/data-quality-db": () => import("../server/market/data-quality-db.js"),
 
   "jobs/daily-history-update": () =>
     import("../server/jobs/daily-history-update.js"),
