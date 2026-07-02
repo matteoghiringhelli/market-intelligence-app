@@ -1462,3 +1462,104 @@ p {
     flex-direction: column;
   }
 }
+
+/* =========================================================
+   HOME OVERVIEW — OPERATIONS CHECKLIST
+   ========================================================= */
+
+.operations-checklist-card {
+  margin: 20px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.06);
+}
+
+.operations-checklist-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.operations-checklist-card__header h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.operations-checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.operation-check-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.operation-check-card__dot {
+  width: 12px;
+  height: 12px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.operation-check-card__dot--ok {
+  background: #22c55e;
+}
+
+.operation-check-card__dot--warning {
+  background: #f59e0b;
+}
+
+.operation-check-card__dot--danger {
+  background: #ef4444;
+}
+
+.operation-check-card__title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.operation-check-card h3 {
+  margin: 4px 0 0;
+  font-size: 19px;
+}
+
+.operation-check-card p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+@media (max-width: 700px) {
+  .operations-checklist-card {
+    padding: 16px;
+  }
+
+  .operations-checklist-card__header {
+    flex-direction: column;
+  }
+
+  .operations-checklist-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .operation-check-card__title-row {
+    flex-direction: column;
+  }
+}

@@ -181,6 +181,75 @@ function renderMarketSnapshotShell() {
   `;
 }
 
+function renderOperationsChecklistShell() {
+  return `
+    <section class="operations-checklist-card">
+      <div class="operations-checklist-card__header">
+        <div>
+          <p class="eyebrow">Operations Checklist</p>
+          <h3>Stato operativo backend</h3>
+          <p class="muted-text">
+            Checklist descrittiva dei blocchi necessari per mantenere aggiornato
+            il data layer: storico, pattern, ingestion runs e data quality log.
+          </p>
+        </div>
+
+        <span id="operations-checklist-badge" class="quality-badge quality-badge--neutral">
+          Non verificato
+        </span>
+      </div>
+
+      <div id="operations-checklist-content">
+        ${renderEmptyOperationsChecklist()}
+      </div>
+    </section>
+  `;
+}
+
+function renderEmptyOperationsChecklist() {
+  return `
+    <div class="operations-checklist-grid">
+      <article class="operation-check-card">
+        <span class="operation-check-card__dot operation-check-card__dot--neutral"></span>
+        <div>
+          <p class="metric-label">Storico prezzi</p>
+          <h3>n/d</h3>
+          <p>Dati non ancora verificati in questa vista.</p>
+        </div>
+      </article>
+
+      <article class="operation-check-card">
+        <span class="operation-check-card__dot operation-check-card__dot--neutral"></span>
+        <div>
+          <p class="metric-label">Pattern tecnici</p>
+          <h3>n/d</h3>
+          <p>Pattern non ancora verificati in questa vista.</p>
+        </div>
+      </article>
+
+      <article class="operation-check-card">
+        <span class="operation-check-card__dot operation-check-card__dot--neutral"></span>
+        <div>
+          <p class="metric-label">Ingestion runs</p>
+          <h3>n/d</h3>
+          <p>Job non ancora verificati in questa vista.</p>
+        </div>
+      </article>
+
+      <article class="operation-check-card">
+        <span class="operation-check-card__dot operation-check-card__dot--neutral"></span>
+        <div>
+          <p class="metric-label">Data quality log</p>
+          <h3>n/d</h3>
+          <p>Log qualità dati non ancora verificato.</p>
+        </div>
+      </article>
+    </div>
+  `;
+}
+
+
+
 function renderEmptyMarketSnapshot() {
   return `
     <div class="market-snapshot-grid">
@@ -256,6 +325,8 @@ export function renderHomeOverviewPage() {
 
     ${renderMarketSnapshotShell()}
 
+    ${renderOperationsChecklistShell()}
+
     <section class="overview-grid">
       ${cards}
     </section>
@@ -295,6 +366,7 @@ window.loadMarketSnapshot = async function loadMarketSnapshot() {
     `;
 
     contentEl.innerHTML = renderMarketSnapshot(snapshot);
+    updateOperationsChecklist(data);
   } catch (error) {
     statusEl.innerHTML = `
       <p><strong>Errore caricamento Market Snapshot:</strong> ${error.message}</p>
@@ -305,6 +377,7 @@ window.loadMarketSnapshot = async function loadMarketSnapshot() {
     `;
 
     contentEl.innerHTML = renderEmptyMarketSnapshot();
+    resetOperationsChecklistOnError();
   }
 };
 
@@ -453,4 +526,193 @@ function formatNumber(value) {
   return new Intl.NumberFormat("it-IT", {
     maximumFractionDigits: 0
   }).format(numberValue);
+}
+function buildOperationsChecklist(data) {
+  const priceRows = data?.price_history_summary?.rows || [];
+  const patternSummaryRows =
+    data?.technical_patterns_summary?.summary_by_ticker || [];
+  const ingestionRuns = data?.latest_ingestion_runs?.rows || [];
+  const qualityLogs = data?.latest_quality_logs?.rows || [];
+
+  const latestIngestionRun = ingestionRuns[0] || null;
+
+  const totalHistoricalRecords = priceRows.reduce((sum, row) => {
+    return sum + Number(row.records_count || 0);
+  }, 0);
+
+  const totalPatterns = patternSummaryRows.reduce((sum, row) => {
+    return sum + Number(row.patterns_count || 0);
+  }, 0);
+
+  const historyOk = priceRows.length > 0 && totalHistoricalRecords > 0;
+  const patternsOk = patternSummaryRows.length > 0 && totalPatterns > 0;
+  const ingestionOk =
+    latestIngestionRun?.status === "completed" ||
+    latestIngestionRun?.status === "completed_with_errors";
+  const qualityLogOk = qualityLogs.length > 0;
+
+  const checks = [
+    {
+      id: "history",
+      title: "Storico prezzi",
+      ok: historyOk,
+      warning: priceRows.length > 0 && totalHistoricalRecords === 0,
+      value: historyOk
+        ? `${priceRows.length} titoli / ${totalHistoricalRecords} record`
+        : "Non popolato",
+      description: historyOk
+        ? "La tabella price_history contiene dati storici persistenti."
+        : "Esegui il job daily-history-update per popolare price_history."
+    },
+    {
+      id: "patterns",
+      title: "Pattern tecnici",
+      ok: patternsOk,
+      warning: patternSummaryRows.length > 0 && totalPatterns === 0,
+      value: patternsOk
+        ? `${patternSummaryRows.length} titoli / ${totalPatterns} pattern`
+        : "Non popolato",
+      description: patternsOk
+        ? "La tabella technical_patterns contiene pattern descrittivi calcolati."
+        : "Esegui il job detect-technical-patterns dopo aver caricato lo storico."
+    },
+    {
+      id: "ingestion",
+      title: "Ingestion runs",
+      ok: latestIngestionRun?.status === "completed",
+      warning: latestIngestionRun?.status === "completed_with_errors",
+      value: latestIngestionRun?.status || "n/d",
+      description: latestIngestionRun
+        ? `Ultimo job: ${latestIngestionRun.job_name || "n/d"}`
+        : "Nessun ingestion run trovato."
+    },
+    {
+      id: "quality",
+      title: "Data quality log",
+      ok: qualityLogOk,
+      warning: false,
+      value: qualityLogOk ? `${qualityLogs.length} log recenti` : "Nessun log",
+      description: qualityLogOk
+        ? "Sono presenti log recenti di qualità dati."
+        : "Il data_quality_log non contiene ancora record recenti."
+    }
+  ];
+
+  const okCount = checks.filter((check) => check.ok).length;
+  const warningCount = checks.filter((check) => check.warning).length;
+
+  let overallStatus = "Da verificare";
+  let overallClass = "quality-badge--neutral";
+
+  if (okCount === checks.length) {
+    overallStatus = "Operativo";
+    overallClass = "quality-badge--ok";
+  } else if (okCount > 0 || warningCount > 0) {
+    overallStatus = "Parziale";
+    overallClass = "quality-badge--warning";
+  } else {
+    overallStatus = "Non pronto";
+    overallClass = "quality-badge--danger";
+  }
+
+  return {
+    checks,
+    okCount,
+    warningCount,
+    overallStatus,
+    overallClass
+  };
+}
+
+function renderOperationsChecklist(checklist) {
+  const cards = checklist.checks
+    .map((check) => {
+      const dotClass = check.ok
+        ? "operation-check-card__dot--ok"
+        : check.warning
+          ? "operation-check-card__dot--warning"
+          : "operation-check-card__dot--danger";
+
+      const badgeClass = check.ok
+        ? "quality-badge--ok"
+        : check.warning
+          ? "quality-badge--warning"
+          : "quality-badge--danger";
+
+      const label = check.ok ? "OK" : check.warning ? "Parziale" : "Da fare";
+
+      return `
+        <article class="operation-check-card">
+          <span class="operation-check-card__dot ${dotClass}"></span>
+
+          <div>
+            <div class="operation-check-card__title-row">
+              <div>
+                <p class="metric-label">${check.title}</p>
+                <h3>${check.value}</h3>
+              </div>
+
+              <span class="quality-badge ${badgeClass}">
+                ${label}
+              </span>
+            </div>
+
+            <p>${check.description}</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="operations-checklist-grid">
+      ${cards}
+    </div>
+
+    <section class="audit-box">
+      <p>
+        <strong>Stato complessivo:</strong>
+        ${checklist.okCount}/${checklist.checks.length} controlli OK.
+        Questa checklist descrive lo stato operativo del backend e non produce
+        valutazioni finanziarie o segnali operativi.
+      </p>
+    </section>
+  `;
+}
+
+function updateOperationsChecklist(data) {
+  const badgeEl = document.querySelector("#operations-checklist-badge");
+  const contentEl = document.querySelector("#operations-checklist-content");
+
+  if (!badgeEl || !contentEl) {
+    return;
+  }
+
+  const checklist = buildOperationsChecklist(data);
+
+  badgeEl.className = `quality-badge ${checklist.overallClass}`;
+  badgeEl.textContent = checklist.overallStatus;
+
+  contentEl.innerHTML = renderOperationsChecklist(checklist);
+}
+
+function resetOperationsChecklistOnError() {
+  const badgeEl = document.querySelector("#operations-checklist-badge");
+  const contentEl = document.querySelector("#operations-checklist-content");
+
+  if (!badgeEl || !contentEl) {
+    return;
+  }
+
+  badgeEl.className = "quality-badge quality-badge--danger";
+  badgeEl.textContent = "Errore";
+
+  contentEl.innerHTML = `
+    <section class="audit-box">
+      <p>
+        <strong>Operations Checklist non disponibile:</strong>
+        impossibile leggere lo stato operativo da Supabase.
+      </p>
+    </section>
+  `;
 }
