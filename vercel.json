@@ -4,6 +4,10 @@
     {
       "path": "/api/jobs/daily-history-update",
       "schedule": "30 23 * * 1-5"
+    },
+    {
+      "path": "/api/jobs/detect-technical-patterns",
+      "schedule": "45 23 * * 1-5"
     }
   ]
 }
