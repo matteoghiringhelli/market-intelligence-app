@@ -18,7 +18,8 @@ export function renderSecurityDetail(security) {
           <h2>${security.ticker} — ${security.companyName}</h2>
           <p>
             Scheda descrittiva del titolo. I dati mock restano disponibili,
-            mentre storico e pattern tecnici possono essere letti dal data layer Supabase.
+            mentre storico giornaliero e pattern tecnici possono essere letti
+            dal data layer Supabase.
           </p>
         </div>
       </div>
@@ -84,7 +85,7 @@ export function renderSecurityDetail(security) {
           <div>
             <h3>Pattern tecnici reali da Supabase</h3>
             <p>
-              Lettura dei pattern calcolati dal job
+              Lettura dei pattern tecnici calcolati dal job
               <code>/api/jobs/detect-technical-patterns</code>
               e salvati nella tabella <code>technical_patterns</code>.
             </p>
@@ -436,129 +437,4 @@ function formatNumber(value) {
   return new Intl.NumberFormat("it-IT", {
     maximumFractionDigits: 2
   }).format(numberValue);
-}
-window.loadSecurityTechnicalPatterns = async function loadSecurityTechnicalPatterns(symbol) {
-  const statusEl = document.querySelector("#security-patterns-status");
-  const stackEl = document.querySelector("#security-patterns-stack");
-
-  if (!statusEl || !stackEl) {
-    return;
-  }
-
-  statusEl.innerHTML = `
-    <p>Caricamento pattern tecnici per <strong>${symbol}</strong> da Supabase...</p>
-  `;
-
-  stackEl.innerHTML = "";
-
-  try {
-    const payload = await fetchTechnicalPatternsFromDb(symbol, 20);
-    const patterns = payload?.data?.patterns || [];
-
-    if (!patterns.length) {
-      statusEl.innerHTML = `
-        <p>
-          Nessun pattern tecnico reale trovato per <strong>${symbol}</strong>.
-        </p>
-        <p>
-          Esegui prima:
-          <code>/api/jobs/detect-technical-patterns?symbols=${symbol}&limit=260&secret=...</code>
-        </p>
-      `;
-      return;
-    }
-
-    statusEl.innerHTML = `
-      <p>
-        Pattern tecnici recuperati correttamente da Supabase.
-        Pattern disponibili: <strong>${patterns.length}</strong>.
-      </p>
-    `;
-
-    stackEl.innerHTML = patterns.map(renderSecurityPatternCard).join("");
-  } catch (error) {
-    statusEl.innerHTML = `
-      <p><strong>Errore recupero pattern tecnici:</strong> ${error.message}</p>
-      <p>
-        La scheda resta disponibile con dati mock. Verifica che il job tecnico abbia popolato
-        la tabella <code>technical_patterns</code>.
-      </p>
-    `;
-  }
-};
-
-function renderSecurityPatternCard(pattern) {
-  return `
-    <article class="pattern-card security-pattern-card">
-      <div class="pattern-card__header">
-        <div>
-          <p class="eyebrow">${pattern.ticker}</p>
-          <h3>${pattern.pattern_name}</h3>
-        </div>
-
-        <span class="quality-badge quality-badge--neutral">
-          ${pattern.timeframe}
-        </span>
-      </div>
-
-      <section class="description-box">
-        <p>${pattern.explanation}</p>
-      </section>
-
-      <div class="technical-grid">
-        <div>
-          <p class="metric-label">Data rilevazione</p>
-          <strong>${formatValue(pattern.detected_at)}</strong>
-        </div>
-
-        <div>
-          <p class="metric-label">Finestra inizio</p>
-          <strong>${formatValue(pattern.window_start)}</strong>
-        </div>
-
-        <div>
-          <p class="metric-label">Finestra fine</p>
-          <strong>${formatValue(pattern.window_end)}</strong>
-        </div>
-
-        <div>
-          <p class="metric-label">Fonte</p>
-          <strong>${formatValue(pattern.source_id)}</strong>
-        </div>
-      </div>
-
-      ${renderPatternConditions(pattern)}
-
-      <section class="audit-box">
-        <p><strong>Limiti:</strong> ${pattern.limitations_note}</p>
-        <p><strong>Computed at:</strong> ${formatValue(pattern.computed_at)}</p>
-      </section>
-    </article>
-  `;
-}
-
-function renderPatternConditions(pattern) {
-  const conditions = pattern.trigger_conditions_json;
-
-  if (!conditions || typeof conditions !== "object") {
-    return "";
-  }
-
-  const rows = Object.entries(conditions)
-    .map(([key, value]) => {
-      return `
-        <p>
-          <strong>${key}:</strong>
-          ${typeof value === "object" ? JSON.stringify(value) : value}
-        </p>
-      `;
-    })
-    .join("");
-
-  return `
-    <section class="description-box">
-      <p><strong>Condizioni osservate</strong></p>
-      ${rows}
-    </section>
-  `;
 }
