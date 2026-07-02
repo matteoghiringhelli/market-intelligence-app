@@ -1,5 +1,9 @@
 import { fetchHistoricalPricesFromDb } from "../services/historical-market-api.js";
 import { fetchTechnicalPatternsFromDb } from "../services/technical-patterns-api.js";
+const securityDetailRuntimeState = {
+  latestHistoryPayloadBySymbol: {},
+  latestPatternsPayloadBySymbol: {}
+};
 
 export function renderSecurityDetail(security) {
   if (!security) {
@@ -67,6 +71,27 @@ export function renderSecurityDetail(security) {
 
         <div id="security-refresh-status" class="description-box">
           Dati reali non ancora aggiornati in questa vista.
+        </div>
+      </section>
+
+
+      <section class="detail-section security-live-summary-section">
+        <div class="security-live-summary__header">
+          <div>
+            <h3>Riepilogo dati reali</h3>
+            <p>
+              Sintesi aggiornata dopo il caricamento dello storico e dei pattern tecnici
+              dal data layer Supabase.
+            </p>
+          </div>
+
+          <span class="quality-badge quality-badge--neutral">
+            On demand
+          </span>
+        </div>
+
+        <div id="security-live-summary" class="security-live-summary-grid">
+          ${renderInitialSecurityLiveSummary(security.ticker)}
         </div>
       </section>
 
@@ -193,6 +218,9 @@ window.loadSecurityHistory = async function loadSecurityHistory(symbol) {
 
     summaryEl.innerHTML = renderHistorySummary(payload, records);
     tableEl.innerHTML = renderHistoryTable(records);
+
+    securityDetailRuntimeState.latestHistoryPayloadBySymbol[symbol] = payload;
+    updateSecurityLiveSummary(symbol);
   } catch (error) {
     statusEl.innerHTML = `
       <p><strong>Errore recupero storico:</strong> ${error.message}</p>
@@ -243,6 +271,9 @@ window.loadSecurityTechnicalPatterns = async function loadSecurityTechnicalPatte
     `;
 
     stackEl.innerHTML = patterns.map(renderSecurityPatternCard).join("");
+
+    securityDetailRuntimeState.latestPatternsPayloadBySymbol[symbol] = payload;
+    updateSecurityLiveSummary(symbol);
   } catch (error) {
     statusEl.innerHTML = `
       <p><strong>Errore recupero pattern tecnici:</strong> ${error.message}</p>
@@ -466,6 +497,8 @@ function formatNumber(value) {
 window.refreshSecurityData = async function refreshSecurityData(symbol) {
   const statusEl = document.querySelector("#security-refresh-status");
 
+  updateSecurityLiveSummaryLoading(symbol);
+
   if (statusEl) {
     statusEl.innerHTML = `
       <p>
@@ -511,3 +544,167 @@ window.refreshSecurityData = async function refreshSecurityData(symbol) {
     }
   }
 };
+
+function renderInitialSecurityLiveSummary(symbol) {
+  return `
+    <article class="metric-card">
+      <p class="metric-label">Ticker</p>
+      <h3>${symbol}</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Ultima chiusura</p>
+      <h3>n/d</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Record storici</p>
+      <h3>0</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Pattern tecnici</p>
+      <h3>0</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Fonte</p>
+      <h3>mock</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Ultimo aggiornamento</p>
+      <h3>n/d</h3>
+    </article>
+  `;
+}
+
+function updateSecurityLiveSummaryLoading(symbol) {
+  const summaryEl = document.querySelector("#security-live-summary");
+
+  if (!summaryEl) {
+    return;
+  }
+
+  summaryEl.innerHTML = `
+    <article class="metric-card">
+      <p class="metric-label">Ticker</p>
+      <h3>${symbol}</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Stato</p>
+      <h3>Caricamento...</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Record storici</p>
+      <h3>in corso</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Pattern tecnici</p>
+      <h3>in corso</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Fonte</p>
+      <h3>Supabase</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Ultimo aggiornamento</p>
+      <h3>${new Date().toISOString()}</h3>
+    </article>
+  `;
+}
+
+function updateSecurityLiveSummary(symbol) {
+  const summaryEl = document.querySelector("#security-live-summary");
+
+  if (!summaryEl) {
+    return;
+  }
+
+  const historyPayload =
+    securityDetailRuntimeState.latestHistoryPayloadBySymbol[symbol];
+
+  const patternsPayload =
+    securityDetailRuntimeState.latestPatternsPayloadBySymbol[symbol];
+
+  const historyRecords = historyPayload?.data?.records || [];
+  const patterns = patternsPayload?.data?.patterns || [];
+
+  const latestHistoryRecord = historyRecords[0] || null;
+  const historyQuality = historyPayload?.data_quality || {};
+  const patternQuality = patternsPayload?.data_quality || {};
+
+  const latestClose = latestHistoryRecord?.close ?? null;
+  const historyCount = historyRecords.length;
+  const patternsCount = patterns.length;
+
+  const sourceId =
+    historyQuality.source_id ||
+    patternQuality.source_id ||
+    latestHistoryRecord?.source_id ||
+    "n/d";
+
+  const latestUpdate =
+    historyQuality.fetched_at ||
+    patternQuality.fetched_at ||
+    latestHistoryRecord?.fetched_at ||
+    "n/d";
+
+  const latestDataAsOf =
+    historyQuality.data_as_of ||
+    patternQuality.data_as_of ||
+    latestHistoryRecord?.date ||
+    "n/d";
+
+  const completeness =
+    historyQuality.average_completeness_score !== undefined
+      ? `${historyQuality.average_completeness_score}%`
+      : "n/d";
+
+  summaryEl.innerHTML = `
+    <article class="metric-card">
+      <p class="metric-label">Ticker</p>
+      <h3>${symbol}</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Ultima chiusura</p>
+      <h3>${formatNumber(latestClose)}</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Record storici</p>
+      <h3>${historyCount}</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Pattern tecnici</p>
+      <h3>${patternsCount}</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Fonte</p>
+      <h3>${formatValue(sourceId)}</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Data as of</p>
+      <h3>${formatValue(latestDataAsOf)}</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Completezza media</p>
+      <h3>${formatValue(completeness)}</h3>
+    </article>
+
+    <article class="metric-card">
+      <p class="metric-label">Ultimo aggiornamento</p>
+      <h3>${formatValue(latestUpdate)}</h3>
+    </article>
+  `;
+}
