@@ -1,5 +1,9 @@
 import { getRealDataStatus } from "../state/real-data-status.js";
 import { fetchDataQualityOverview } from "../services/data-quality-api.js";
+import {
+  runDailyHistoryUpdate,
+  runDetectTechnicalPatterns
+} from "../services/operations-api.js";
 
 const overviewCards = [
   {
@@ -41,6 +45,116 @@ const overviewCards = [
     meta: "Freshness · Completeness · Audit"
   }
 ];
+
+function renderManualOperationsShell() {
+  return `
+    <section class="manual-operations-card">
+      <div class="manual-operations-card__header">
+        <div>
+          <p class="eyebrow">Manual Operations</p>
+          <h3>Job manuali Supabase</h3>
+          <p class="muted-text">
+            Avvia manualmente i job backend già esistenti per aggiornare storico prezzi
+            e pattern tecnici. Non vengono create nuove API.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          Manual
+        </span>
+      </div>
+
+      <div class="manual-operations-form">
+        <label>
+          <span>CRON_SECRET</span>
+          <input
+            id="manual-operation-secret"
+            class="manual-operation-input"
+            type="password"
+            placeholder="Incolla CRON_SECRET"
+            autocomplete="off"
+          />
+        </label>
+
+        <label>
+          <span>Symbols</span>
+          <input
+            id="manual-operation-symbols"
+            class="manual-operation-input"
+            type="text"
+            value="AAPL,MSFT,JPM,NVDA,AMZN"
+          />
+        </label>
+
+        <label>
+          <span>Days storico</span>
+          <input
+            id="manual-operation-days"
+            class="manual-operation-input"
+            type="number"
+            min="1"
+            max="60"
+            value="30"
+          />
+        </label>
+
+        <label>
+          <span>Pattern limit</span>
+          <input
+            id="manual-operation-limit"
+            class="manual-operation-input"
+            type="number"
+            min="20"
+            max="1000"
+            value="260"
+          />
+        </label>
+      </div>
+
+      <div class="manual-operations-actions">
+        <button
+          class="button"
+          type="button"
+          onclick="runManualHistoryJob()"
+        >
+          Aggiorna storico
+        </button>
+
+        <button
+          class="secondary-button"
+          type="button"
+          onclick="runManualPatternJob()"
+        >
+          Calcola pattern
+        </button>
+
+        <button
+          class="secondary-button"
+          type="button"
+          onclick="runFullManualPipeline()"
+        >
+          Esegui pipeline completa
+        </button>
+      </div>
+
+      <div id="manual-operations-status" class="description-box">
+        Nessun job manuale lanciato in questa vista.
+      </div>
+
+      <div id="manual-operations-result"></div>
+
+      <section class="audit-box">
+        <p>
+          <strong>Nota sicurezza:</strong>
+          il CRON_SECRET viene usato solo nella richiesta manuale dal browser.
+          Non inserirlo nel codice sorgente e non committarlo su GitHub.
+        </p>
+      </section>
+    </section>
+  `;
+}
+
+
 
 function renderOverviewCard(card) {
   const secondaryButton = card.secondaryActionLabel
@@ -326,6 +440,8 @@ export function renderHomeOverviewPage() {
     ${renderMarketSnapshotShell()}
 
     ${renderOperationsChecklistShell()}
+
+    ${renderManualOperationsShell()}
 
     <section class="overview-grid">
       ${cards}
@@ -715,4 +831,193 @@ function resetOperationsChecklistOnError() {
       </p>
     </section>
   `;
+}
+
+window.runManualHistoryJob = async function runManualHistoryJob() {
+  const params = getManualOperationParams();
+
+  if (!params.ok) {
+    updateManualOperationsStatus(params.message, "error");
+    return;
+  }
+
+  updateManualOperationsStatus("Avvio daily-history-update...", "loading");
+
+  try {
+    const result = await runDailyHistoryUpdate({
+      symbols: params.symbols,
+      days: params.days,
+      secret: params.secret
+    });
+
+    updateManualOperationsStatus("daily-history-update completato.", "success");
+    renderManualOperationsResult(result);
+
+    if (typeof window.loadMarketSnapshot === "function") {
+      await window.loadMarketSnapshot();
+    }
+  } catch (error) {
+    updateManualOperationsStatus(error.message, "error");
+  }
+};
+
+window.runManualPatternJob = async function runManualPatternJob() {
+  const params = getManualOperationParams();
+
+  if (!params.ok) {
+    updateManualOperationsStatus(params.message, "error");
+    return;
+  }
+
+  updateManualOperationsStatus("Avvio detect-technical-patterns...", "loading");
+
+  try {
+    const result = await runDetectTechnicalPatterns({
+      symbols: params.symbols,
+      limit: params.limit,
+      secret: params.secret
+    });
+
+    updateManualOperationsStatus("detect-technical-patterns completato.", "success");
+    renderManualOperationsResult(result);
+
+    if (typeof window.loadMarketSnapshot === "function") {
+      await window.loadMarketSnapshot();
+    }
+  } catch (error) {
+    updateManualOperationsStatus(error.message, "error");
+  }
+};
+
+window.runFullManualPipeline = async function runFullManualPipeline() {
+  const params = getManualOperationParams();
+
+  if (!params.ok) {
+    updateManualOperationsStatus(params.message, "error");
+    return;
+  }
+
+  updateManualOperationsStatus("Pipeline completa avviata: Step 1 storico prezzi...", "loading");
+
+  try {
+    const historyResult = await runDailyHistoryUpdate({
+      symbols: params.symbols,
+      days: params.days,
+      secret: params.secret
+    });
+
+    updateManualOperationsStatus(
+      "Step 1 completato. Step 2 calcolo pattern tecnici...",
+      "loading"
+    );
+
+    const patternResult = await runDetectTechnicalPatterns({
+      symbols: params.symbols,
+      limit: params.limit,
+      secret: params.secret
+    });
+
+    updateManualOperationsStatus("Pipeline completa terminata.", "success");
+
+    renderManualOperationsResult({
+      pipeline: "full-manual-pipeline",
+      history: historyResult,
+      patterns: patternResult,
+      finished_at: new Date().toISOString()
+    });
+
+    if (typeof window.loadMarketSnapshot === "function") {
+      await window.loadMarketSnapshot();
+    }
+  } catch (error) {
+    updateManualOperationsStatus(error.message, "error");
+  }
+};
+
+function getManualOperationParams() {
+  const secretEl = document.querySelector("#manual-operation-secret");
+  const symbolsEl = document.querySelector("#manual-operation-symbols");
+  const daysEl = document.querySelector("#manual-operation-days");
+  const limitEl = document.querySelector("#manual-operation-limit");
+
+  const secret = String(secretEl?.value || "").trim();
+  const symbols = String(symbolsEl?.value || "").trim();
+  const days = Number(daysEl?.value || 30);
+  const limit = Number(limitEl?.value || 260);
+
+  if (!secret) {
+    return {
+      ok: false,
+      message: "Inserisci CRON_SECRET prima di lanciare un job."
+    };
+  }
+
+  if (!symbols) {
+    return {
+      ok: false,
+      message: "Inserisci almeno un ticker nel campo Symbols."
+    };
+  }
+
+  return {
+    ok: true,
+    secret,
+    symbols,
+    days: Number.isNaN(days) ? 30 : days,
+    limit: Number.isNaN(limit) ? 260 : limit
+  };
+}
+
+function updateManualOperationsStatus(message, status = "neutral") {
+  const statusEl = document.querySelector("#manual-operations-status");
+
+  if (!statusEl) {
+    return;
+  }
+
+  const className =
+    status === "success"
+      ? "description-box manual-operations-status--success"
+      : status === "error"
+        ? "audit-box manual-operations-status--error"
+        : "description-box";
+
+  statusEl.className = className;
+  statusEl.innerHTML = `
+    <p>${message}</p>
+  `;
+}
+
+function renderManualOperationsResult(result) {
+  const resultEl = document.querySelector("#manual-operations-result");
+
+  if (!resultEl) {
+    return;
+  }
+
+  resultEl.innerHTML = `
+    <section class="manual-operations-result">
+      <div class="manual-operations-result__header">
+        <div>
+          <p class="eyebrow">Job result</p>
+          <h3>Risultato ultimo job</h3>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          JSON
+        </span>
+      </div>
+
+      <pre>${escapeHtml(JSON.stringify(result, null, 2))}</pre>
+    </section>
+  `;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
