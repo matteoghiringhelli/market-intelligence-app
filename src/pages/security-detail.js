@@ -351,8 +351,9 @@ function renderHistorySummary(payload, records) {
 }
 
 function renderHistoryTable(records) {
-  const rows = records
-    .slice(0, 20)
+  const visibleRecords = records.slice(0, 20);
+
+  const tableRows = visibleRecords
     .map((record) => {
       return `
         <tr>
@@ -368,8 +369,80 @@ function renderHistoryTable(records) {
     })
     .join("");
 
+  const mobileCards = visibleRecords
+    .map((record) => {
+      const closeValue = Number(record.close);
+      const openValue = Number(record.open);
+
+      const dailyDirection =
+        !Number.isNaN(closeValue) && !Number.isNaN(openValue)
+          ? closeValue >= openValue
+            ? "daily-history-card--up"
+            : "daily-history-card--down"
+          : "";
+
+      const dailyLabel =
+        !Number.isNaN(closeValue) && !Number.isNaN(openValue)
+          ? closeValue >= openValue
+            ? "Close sopra/aperto"
+            : "Close sotto/aperto"
+          : "Direzione n/d";
+
+      return `
+        <article class="daily-history-card ${dailyDirection}">
+          <div class="daily-history-card__header">
+            <div>
+              <p class="metric-label">Data</p>
+              <h3>${formatValue(record.date)}</h3>
+            </div>
+
+            <span class="quality-badge quality-badge--neutral">
+              ${formatValue(record.completeness_score)}%
+            </span>
+          </div>
+
+          <div class="daily-history-card__main">
+            <div>
+              <p class="metric-label">Close</p>
+              <strong>${formatNumber(record.close)}</strong>
+            </div>
+
+            <div>
+              <p class="metric-label">Volume</p>
+              <strong>${formatNumber(record.volume)}</strong>
+            </div>
+          </div>
+
+          <div class="daily-history-card__ohlc">
+            <div>
+              <p class="metric-label">Open</p>
+              <strong>${formatNumber(record.open)}</strong>
+            </div>
+
+            <div>
+              <p class="metric-label">High</p>
+              <strong>${formatNumber(record.high)}</strong>
+            </div>
+
+            <div>
+              <p class="metric-label">Low</p>
+              <strong>${formatNumber(record.low)}</strong>
+            </div>
+          </div>
+
+          <section class="daily-history-card__footer">
+            <p>
+              ${dailyLabel}. Dato descrittivo giornaliero, senza valore predittivo
+              o indicazione operativa.
+            </p>
+          </section>
+        </article>
+      `;
+    })
+    .join("");
+
   return `
-    <div class="history-table-wrapper">
+    <div class="history-table-wrapper history-table-wrapper--desktop">
       <table class="history-table">
         <thead>
           <tr>
@@ -383,13 +456,17 @@ function renderHistoryTable(records) {
           </tr>
         </thead>
         <tbody>
-          ${rows}
+          ${tableRows}
         </tbody>
       </table>
     </div>
 
+    <div class="daily-history-card-list">
+      ${mobileCards}
+    </div>
+
     <p class="muted-text">
-      Tabella limitata agli ultimi 20 record restituiti dall’API.
+      Vista limitata agli ultimi 20 record restituiti dall’API.
       I dati sono descrittivi e non costituiscono consulenza finanziaria.
     </p>
   `;

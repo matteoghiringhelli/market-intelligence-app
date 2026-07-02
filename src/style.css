@@ -1087,3 +1087,102 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   MOBILE DAILY HISTORY CARDS
+   ========================================================= */
+
+.daily-history-card-list {
+  display: none;
+}
+
+.daily-history-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.daily-history-card--up {
+  border-left: 4px solid #22c55e;
+}
+
+.daily-history-card--down {
+  border-left: 4px solid #f97316;
+}
+
+.daily-history-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.daily-history-card__header h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.daily-history-card__main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.daily-history-card__main strong {
+  font-size: 22px;
+}
+
+.daily-history-card__ohlc {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.daily-history-card__ohlc strong {
+  font-size: 15px;
+}
+
+.daily-history-card__footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.daily-history-card__footer p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+@media (max-width: 700px) {
+  .history-table-wrapper--desktop {
+    display: none;
+  }
+
+  .daily-history-card-list {
+    display: grid;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .daily-history-card {
+    padding: 14px;
+  }
+
+  .daily-history-card__main {
+    grid-template-columns: 1fr;
+  }
+
+  .daily-history-card__ohlc {
+    grid-template-columns: 1fr;
+  }
+}
