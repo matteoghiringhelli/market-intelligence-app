@@ -1,18 +1,41 @@
 import { fetchFmpPeers } from "../providers/fmp-peers.js";
 import { getSupabaseAdminClient } from "../lib/supabase-admin.js";
+import {
+  getPeerGroupFromDb,
+  upsertPeerGroup
+} from "../lib/peer-congress-repository.js";
 
 export default async function handler(req, res) {
   const symbol = String(req.query.symbol || "AAPL").trim().toUpperCase();
   const limit = parseLimit(req.query.limit);
+  const refresh = String(req.query.refresh || "false") === "true";
 
   try {
-    const peerResult = await fetchFmpPeers(symbol);
+    let peerGroup = refresh ? null : await getPeerGroupFromDb(symbol);
+    let sourceMode = "supabase-cache";
 
-    if (!peerResult.ok) {
-      return res.status(peerResult.status).json(peerResult.payload);
+    if (!peerGroup || !Array.isArray(peerGroup.peers) || !peerGroup.peers.length) {
+      const peerResult = await fetchFmpPeers(symbol);
+
+      if (!peerResult.ok) {
+        return res.status(peerResult.status).json(peerResult.payload);
+      }
+
+      const fetchedPeers = peerResult.payload.data.peers.slice(0, limit);
+
+      await upsertPeerGroup({
+        baseTicker: symbol,
+        provider: "fmp",
+        sourceId: "financial_modeling_prep",
+        peers: fetchedPeers,
+        rawPayload: peerResult.payload
+      });
+
+      peerGroup = await getPeerGroupFromDb(symbol);
+      sourceMode = "fmp-refresh";
     }
 
-    const peers = peerResult.payload.data.peers.slice(0, limit);
+    const peers = (peerGroup?.peers || []).slice(0, limit);
     const tickers = [symbol, ...peers];
 
     const latestPrices = await loadLatestPrices(tickers);
@@ -29,7 +52,7 @@ export default async function handler(req, res) {
         role: ticker === symbol ? "base" : "peer",
         latest_close: price?.close ?? null,
         latest_date: price?.date ?? null,
-        source_id: price?.source_id || summary?.source_id || "financial_modeling_prep",
+        source_id: price?.source_id || summary?.source_id || peerGroup?.source_id || "financial_modeling_prep",
         records_count: summary?.records_count || 0,
         first_date: summary?.first_date || null,
         latest_history_date: summary?.latest_date || null,
@@ -49,19 +72,20 @@ export default async function handler(req, res) {
       data: {
         symbol,
         provider: "fmp",
-        source: "supabase+fmp",
+        source: sourceMode,
         records_count: rows.length,
         peers_count: peers.length,
+        peer_group_fetched_at: peerGroup?.fetched_at || null,
         rows
       },
       data_quality: {
-        source_id: "financial_modeling_prep",
+        source_id: peerGroup?.source_id || "financial_modeling_prep",
         fetched_at: new Date().toISOString(),
-        data_as_of: basePrice?.date || null,
+        data_as_of: basePrice?.date || peerGroup?.data_as_of || null,
         completeness_score: calculateCompleteness(rows)
       },
       methodology:
-        "Peer set da FMP Stock Peer Comparison API; metriche prezzi/storico lette da Supabase price_history serving views.",
+        "Peer set persistito in Supabase da FMP Stock Peer Comparison API; metriche prezzi/storico lette da Supabase price_history serving views.",
       disclaimer:
         "Confronto peer descrittivo. Non implica ranking, raccomandazione o valutazione buy/sell."
     });

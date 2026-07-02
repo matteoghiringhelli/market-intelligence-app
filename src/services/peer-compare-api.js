@@ -1,7 +1,8 @@
-export async function fetchRealPeerComparison(symbol = "AAPL", limit = 8) {
+export async function fetchRealPeerComparison(symbol = "AAPL", limit = 8, refresh = false) {
   const params = new URLSearchParams({
     symbol,
-    limit: String(limit)
+    limit: String(limit),
+    refresh: String(refresh)
   });
 
   const response = await fetch(`/api/market/peer-compare-db?${params.toString()}`);

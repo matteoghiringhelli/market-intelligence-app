@@ -1,11 +1,13 @@
 export async function fetchRealCongressDisclosures({
   symbol = "",
   chamber = "both",
-  limit = 50
+  limit = 50,
+  refresh = false
 } = {}) {
   const params = new URLSearchParams({
     chamber,
-    limit: String(limit)
+    limit: String(limit),
+    refresh: String(refresh)
   });
 
   if (symbol) {
