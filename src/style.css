@@ -1957,3 +1957,154 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   SECURITY DETAIL — EMBEDDED THEORY INTERPRETATION
+   ========================================================= */
+
+.security-interpretation-overview-section {
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 34%),
+    #ffffff;
+}
+
+.security-interpretation-overview__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.security-interpretation-overview__header h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.security-interpretation-overview__header p {
+  margin: 8px 0 0;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.security-theory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.security-theory-card {
+  border: 1px solid #dbeafe;
+  border-radius: 20px;
+  padding: 16px;
+  background: #eff6ff;
+}
+
+.security-theory-card__header h4 {
+  margin: 0;
+  font-size: 18px;
+  color: #1e3a8a;
+}
+
+.security-theory-card__interpretation {
+  margin: 12px 0;
+  color: #1e3a8a;
+  line-height: 1.55;
+}
+
+.security-theory-card__lists {
+  display: grid;
+  gap: 12px;
+}
+
+.security-theory-card__lists ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #334155;
+  line-height: 1.45;
+}
+
+.fundamental-theory-block {
+  margin-top: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 22px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.fundamental-theory-block__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.fundamental-theory-block__header h4 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.fundamental-theory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fundamental-theory-mini-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.fundamental-theory-mini-card h4 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.fundamental-theory-mini-card p {
+  margin: 10px 0 0;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.pattern-theory-box {
+  margin-top: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 18px;
+  padding: 16px;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.pattern-theory-box__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.pattern-theory-box__header h4 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.pattern-theory-box p {
+  line-height: 1.55;
+}
+
+@media (max-width: 800px) {
+  .security-interpretation-overview__header,
+  .fundamental-theory-block__header,
+  .pattern-theory-box__header {
+    flex-direction: column;
+  }
+
+  .security-theory-grid,
+  .fundamental-theory-grid {
+    grid-template-columns: 1fr;
+  }
+}

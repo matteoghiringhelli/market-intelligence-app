@@ -1,5 +1,6 @@
 import { fetchHistoricalPricesFromDb } from "../services/historical-market-api.js";
 import { fetchTechnicalPatternsFromDb } from "../services/technical-patterns-api.js";
+import { interpretationGuideSections } from "../data/interpretation-guide.js";
 const securityDetailRuntimeState = {
   latestHistoryPayloadBySymbol: {},
   latestPatternsPayloadBySymbol: {}
@@ -96,10 +97,17 @@ export function renderSecurityDetail(security) {
       </section>
 
 
+      <section class="detail-section security-interpretation-overview-section">
+        ${renderSecurityInterpretationOverview(security.ticker)}
+      </section>
+
+
       <section class="detail-section">
         <h3>Fondamentali descrittivi mock</h3>
         <p><strong>Gross Margin:</strong> ${security.grossMargin || "n/d"}</p>
         <p>${security.peerComparison || "Confronto peer non disponibile per questo titolo."}</p>
+
+        ${renderFundamentalTheoryCards()}
       </section>
 
       <section class="detail-section historical-section">
@@ -528,6 +536,8 @@ function renderSecurityPatternCard(pattern) {
       </div>
 
       ${renderPatternConditions(pattern)}
+
+      ${renderPatternTheoryBox(pattern)}
 
       <section class="audit-box">
         <p><strong>Limiti:</strong> ${pattern.limitations_note}</p>
@@ -1073,4 +1083,185 @@ function renderEmptyTechnicalInsightSummary(symbol) {
       </section>
     </section>
   `;
+}
+
+function getInterpretationSectionById(sectionId) {
+  return interpretationGuideSections.find((section) => section.id === sectionId) || null;
+}
+
+function renderSecurityInterpretationOverview(ticker) {
+  const sections = [
+    getInterpretationSectionById("sma"),
+    getInterpretationSectionById("rsi"),
+    getInterpretationSectionById("relative-volume"),
+    getInterpretationSectionById("margins"),
+    getInterpretationSectionById("valuation-multiples")
+  ].filter(Boolean);
+
+  const cards = sections
+    .map((section) => renderCompactTheoryCard(section))
+    .join("");
+
+  return `
+    <div class="security-interpretation-overview__header">
+      <div>
+        <p class="eyebrow">Financial Theory Layer</p>
+        <h3>Interpretazione teorica per ${ticker}</h3>
+        <p>
+          Questa sezione spiega come la teoria finanziaria e l'analisi tecnica
+          leggono normalmente i segnali e i fondamentali mostrati nella scheda.
+        </p>
+      </div>
+
+      <span class="quality-badge quality-badge--neutral">
+        Educational
+      </span>
+    </div>
+
+    <section class="note-box">
+      <strong>Regola di lettura:</strong>
+      l'app spiega come gli indicatori vengono normalmente interpretati nella teoria
+      finanziaria, ma non produce raccomandazioni operative, indicazioni personalizzate
+      o segnali buy/sell.
+    </section>
+
+    <div class="security-theory-grid">
+      ${cards}
+    </div>
+  `;
+}
+
+function renderCompactTheoryCard(section) {
+  const firstHowToRead = section.howToRead?.slice(0, 3) || [];
+  const firstNotToConclude = section.notToConclude?.slice(0, 2) || [];
+
+  const howToReadItems = firstHowToRead
+    .map((item) => `<li>${item}</li>`)
+    .join("");
+
+  const notToConcludeItems = firstNotToConclude
+    .map((item) => `<li>${item}</li>`)
+    .join("");
+
+  return `
+    <article class="security-theory-card">
+      <div class="security-theory-card__header">
+        <div>
+          <p class="eyebrow">${section.eyebrow}</p>
+          <h4>${section.title}</h4>
+        </div>
+      </div>
+
+      <section class="security-theory-card__interpretation">
+        <p>${section.theoreticalInterpretation}</p>
+      </section>
+
+      <div class="security-theory-card__lists">
+        <div>
+          <p class="metric-label">Come leggerlo</p>
+          <ul>
+            ${howToReadItems}
+          </ul>
+        </div>
+
+        <div>
+          <p class="metric-label">Non concludere automaticamente</p>
+          <ul>
+            ${notToConcludeItems}
+          </ul>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderFundamentalTheoryCards() {
+  const sections = [
+    getInterpretationSectionById("margins"),
+    getInterpretationSectionById("valuation-multiples"),
+    getInterpretationSectionById("growth"),
+    getInterpretationSectionById("leverage"),
+    getInterpretationSectionById("peer-comparison")
+  ].filter(Boolean);
+
+  const cards = sections
+    .map((section) => {
+      return `
+        <article class="fundamental-theory-mini-card">
+          <p class="eyebrow">${section.eyebrow}</p>
+          <h4>${section.title}</h4>
+          <p>${section.theoreticalInterpretation}</p>
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="fundamental-theory-block">
+      <div class="fundamental-theory-block__header">
+        <div>
+          <p class="eyebrow">Fundamental Theory</p>
+          <h4>Come leggere teoricamente i fondamentali</h4>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          Teoria
+        </span>
+      </div>
+
+      <div class="fundamental-theory-grid">
+        ${cards}
+      </div>
+    </section>
+  `;
+}
+
+function renderPatternTheoryBox(pattern) {
+  const section = getTheorySectionForPattern(pattern);
+
+  if (!section) {
+    return "";
+  }
+
+  return `
+    <section class="pattern-theory-box">
+      <div class="pattern-theory-box__header">
+        <div>
+          <p class="eyebrow">Interpretazione teorica</p>
+          <h4>${section.title}</h4>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          Teoria
+        </span>
+      </div>
+
+      <p>${section.theoreticalInterpretation}</p>
+
+      <section class="audit-box">
+        <p>
+          <strong>Cosa non concludere automaticamente:</strong>
+          ${section.notToConclude?.[0] || section.limitation}
+        </p>
+      </section>
+    </section>
+  `;
+}
+
+function getTheorySectionForPattern(pattern) {
+  const patternName = String(pattern.pattern_name || "").toLowerCase();
+
+  if (patternName.includes("sma") || patternName.includes("media")) {
+    return getInterpretationSectionById("sma");
+  }
+
+  if (patternName.includes("rsi")) {
+    return getInterpretationSectionById("rsi");
+  }
+
+  if (patternName.includes("volume")) {
+    return getInterpretationSectionById("relative-volume");
+  }
+
+  return null;
 }
