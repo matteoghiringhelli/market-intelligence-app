@@ -1,4 +1,12 @@
 import { fetchFmpHistoricalPrices } from "../providers/fmp-history.js";
+import {
+  createIngestionRun,
+  finishIngestionRun,
+  saveRawIngestionEvent,
+  upsertSecuritiesFromHistoryRows,
+  upsertPriceHistoryRows,
+  insertDataQualityLog
+} from "../lib/market-data-repository.js";
 
 const DEFAULT_SYMBOLS = ["AAPL", "MSFT", "JPM", "NVDA", "AMZN"];
 
@@ -20,53 +28,130 @@ export default async function handler(req, res) {
   const startedAt = new Date().toISOString();
   const results = [];
 
-  for (const symbol of symbols) {
-    const result = await fetchFmpHistoricalPrices({
-      symbol,
-      from,
-      to,
-      useCache: false
+  let ingestionRunId = null;
+
+  try {
+    ingestionRunId = await createIngestionRun({
+      jobName: "daily-history-update",
+      provider: "fmp",
+      requestedSymbols: symbols
     });
 
-    results.push({
-      symbol,
-      ok: result.ok,
-      status: result.status,
-      source_id: result.payload?.data_quality?.source_id || result.payload?.source_id || "financial_modeling_prep",
-      records_count: result.payload?.data?.records_count || 0,
-      latest_record_date: result.payload?.data?.latest_record_date || null,
-      average_completeness_score:
-        result.payload?.data_quality?.average_completeness_score || null,
-      error: result.ok ? null : result.payload?.error || "UNKNOWN_ERROR",
-      message: result.ok ? "Historical data refreshed in runtime cache." : result.payload?.message
+    for (const symbol of symbols) {
+      const result = await fetchFmpHistoricalPrices({
+        symbol,
+        from,
+        to,
+        useCache: false
+      });
+
+      await saveRawIngestionEvent({
+        ingestionRunId,
+        sourceId: "financial_modeling_prep",
+        ingestionType: "historical-price-eod",
+        externalRef: symbol,
+        payload: result.payload
+      });
+
+      if (!result.ok) {
+        results.push({
+          symbol,
+          ok: false,
+          status: result.status,
+          records_count: 0,
+          latest_record_date: null,
+          average_completeness_score: null,
+          error: result.payload?.error || "UNKNOWN_ERROR",
+          message: result.payload?.message || "Historical fetch failed."
+        });
+
+        continue;
+      }
+
+      const records = result.payload?.data?.records || [];
+
+      await upsertSecuritiesFromHistoryRows(records);
+      const upsertResult = await upsertPriceHistoryRows(records);
+
+      await insertDataQualityLog({
+        tableName: "price_history",
+        recordRef: symbol,
+        fieldName: "historical_eod_batch",
+        sourceId: "financial_modeling_prep",
+        freshnessTs: result.payload?.data_quality?.fetched_at || new Date().toISOString(),
+        completenessFlag:
+          Number(result.payload?.data_quality?.average_completeness_score || 0) >= 80,
+        reliabilityTier: "external_vendor",
+        notes: `Daily historical update. Upserted ${upsertResult.upserted} rows.`
+      });
+
+      results.push({
+        symbol,
+        ok: true,
+        status: result.status,
+        source_id: "financial_modeling_prep",
+        records_count: result.payload?.data?.records_count || 0,
+        upserted_rows: upsertResult.upserted,
+        latest_record_date: result.payload?.data?.latest_record_date || null,
+        average_completeness_score:
+          result.payload?.data_quality?.average_completeness_score || null,
+        error: null,
+        message: "Historical data persisted to Supabase."
+      });
+    }
+
+    const successfulSymbols = results.filter((item) => item.ok).length;
+    const failedSymbols = results.filter((item) => !item.ok).length;
+
+    await finishIngestionRun({
+      ingestionRunId,
+      status: failedSymbols > 0 ? "completed_with_errors" : "completed",
+      successfulSymbols,
+      failedSymbols,
+      notes: "Daily historical EOD update persisted to Supabase."
+    });
+
+    return res.status(200).json({
+      job: "daily-history-update",
+      mode: "supabase-persistent",
+      provider: "fmp",
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      ingestion_run_id: ingestionRunId,
+      date_window: {
+        from,
+        to,
+        days
+      },
+      symbols,
+      summary: {
+        requested_symbols: symbols.length,
+        successful_symbols: successfulSymbols,
+        failed_symbols: failedSymbols
+      },
+      results,
+      disclaimer:
+        "Finalità esclusivamente informativa ed educativa. Dati storici descrittivi, nessuna consulenza finanziaria."
+    });
+  } catch (error) {
+    if (ingestionRunId) {
+      await finishIngestionRun({
+        ingestionRunId,
+        status: "failed",
+        successfulSymbols: results.filter((item) => item.ok).length,
+        failedSymbols: results.filter((item) => !item.ok).length,
+        notes: error.message
+      });
+    }
+
+    return res.status(500).json({
+      error: "DAILY_HISTORY_UPDATE_FAILED",
+      message: error.message,
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      ingestion_run_id: ingestionRunId
     });
   }
-
-  const finishedAt = new Date().toISOString();
-
-  return res.status(200).json({
-    job: "daily-history-update",
-    mode: "runtime-cache-only",
-    provider: "fmp",
-    started_at: startedAt,
-    finished_at: finishedAt,
-    date_window: {
-      from,
-      to,
-      days
-    },
-    symbols,
-    summary: {
-      requested_symbols: symbols.length,
-      successful_symbols: results.filter((item) => item.ok).length,
-      failed_symbols: results.filter((item) => !item.ok).length
-    },
-    results,
-    persistence_note:
-      "In questa fase cloud-only senza database, il job recupera e normalizza lo storico e aggiorna la cache runtime. Per conservare dati storici permanenti serve uno storage persistente, ad esempio Supabase/Postgres.",
-    disclaimer:
-      "Finalità esclusivamente informativa ed educativa. Dati storici descrittivi, nessuna consulenza finanziaria."
-  });
 }
 
 function verifyCronAuthorization(req) {
