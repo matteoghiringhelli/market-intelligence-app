@@ -304,8 +304,11 @@ function renderHistorySummary(payload, records) {
     : null;
 
   const quality = payload?.data_quality || {};
+  const miniChart = renderCloseMiniChart(records);
 
   return `
+    ${miniChart}
+
     <section class="history-summary-grid">
       <article class="metric-card">
         <p class="metric-label">Periodo coperto</p>
@@ -784,4 +787,172 @@ function updateSecurityLiveSummary(symbol) {
       <h3>${formatValue(latestUpdate)}</h3>
     </article>
   `;
+}
+
+function renderCloseMiniChart(records) {
+  const chartRecords = [...records]
+    .filter((record) => record.date && record.close !== null && record.close !== undefined)
+    .map((record) => ({
+      date: record.date,
+      close: Number(record.close)
+    }))
+    .filter((record) => !Number.isNaN(record.close))
+    .reverse();
+
+  if (chartRecords.length < 2) {
+    return `
+      <section class="mini-chart-card">
+        <div class="mini-chart-card__header">
+          <div>
+            <p class="eyebrow">Price History</p>
+            <h3>Mini chart close</h3>
+          </div>
+          <span class="quality-badge quality-badge--warning">Dati insufficienti</span>
+        </div>
+
+        <p class="muted-text">
+          Servono almeno due record storici per disegnare una mini chart descrittiva.
+        </p>
+      </section>
+    `;
+  }
+
+  const width = 320;
+  const height = 120;
+  const padding = 12;
+
+  const closes = chartRecords.map((record) => record.close);
+  const minClose = Math.min(...closes);
+  const maxClose = Math.max(...closes);
+  const closeRange = maxClose - minClose || 1;
+
+  const points = chartRecords.map((record, index) => {
+    const x =
+      padding +
+      (index / Math.max(chartRecords.length - 1, 1)) * (width - padding * 2);
+
+    const y =
+      height -
+      padding -
+      ((record.close - minClose) / closeRange) * (height - padding * 2);
+
+    return {
+      x,
+      y,
+      date: record.date,
+      close: record.close
+    };
+  });
+
+  const polylinePoints = points
+    .map((point) => `${roundSvg(point.x)},${roundSvg(point.y)}`)
+    .join(" ");
+
+  const firstPoint = points[0];
+  const lastPoint = points[points.length - 1];
+
+  const directionClass =
+    lastPoint.close >= firstPoint.close
+      ? "mini-chart-card--up"
+      : "mini-chart-card--down";
+
+  const directionLabel =
+    lastPoint.close >= firstPoint.close
+      ? "Close finale sopra close iniziale"
+      : "Close finale sotto close iniziale";
+
+  const firstDate = firstPoint.date;
+  const lastDate = lastPoint.date;
+
+  return `
+    <section class="mini-chart-card ${directionClass}">
+      <div class="mini-chart-card__header">
+        <div>
+          <p class="eyebrow">Price History</p>
+          <h3>Mini chart close</h3>
+          <p class="muted-text">
+            ${firstDate} → ${lastDate}
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          ${chartRecords.length} record
+        </span>
+      </div>
+
+      <div class="mini-chart-card__body">
+        <svg
+          class="mini-chart"
+          viewBox="0 0 ${width} ${height}"
+          role="img"
+          aria-label="Mini chart descrittiva dei prezzi di chiusura"
+        >
+          <line
+            x1="${padding}"
+            y1="${height - padding}"
+            x2="${width - padding}"
+            y2="${height - padding}"
+            class="mini-chart__axis"
+          />
+
+          <line
+            x1="${padding}"
+            y1="${padding}"
+            x2="${padding}"
+            y2="${height - padding}"
+            class="mini-chart__axis"
+          />
+
+          <polyline
+            points="${polylinePoints}"
+            fill="none"
+            class="mini-chart__line"
+          />
+
+          <circle
+            cx="${roundSvg(firstPoint.x)}"
+            cy="${roundSvg(firstPoint.y)}"
+            r="3"
+            class="mini-chart__point"
+          />
+
+          <circle
+            cx="${roundSvg(lastPoint.x)}"
+            cy="${roundSvg(lastPoint.y)}"
+            r="4"
+            class="mini-chart__point mini-chart__point--latest"
+          />
+        </svg>
+      </div>
+
+      <div class="mini-chart-card__stats">
+        <div>
+          <p class="metric-label">Close iniziale</p>
+          <strong>${formatNumber(firstPoint.close)}</strong>
+        </div>
+
+        <div>
+          <p class="metric-label">Close finale</p>
+          <strong>${formatNumber(lastPoint.close)}</strong>
+        </div>
+
+        <div>
+          <p class="metric-label">Min / Max</p>
+          <strong>${formatNumber(minClose)} / ${formatNumber(maxClose)}</strong>
+        </div>
+      </div>
+
+      <section class="audit-box">
+        <p>
+          <strong>Lettura descrittiva:</strong>
+          ${directionLabel}. La mini chart rappresenta solo l'andamento storico
+          dei close disponibili e non genera previsioni o segnali operativi.
+        </p>
+      </section>
+    </section>
+  `;
+}
+
+function roundSvg(value) {
+  return Math.round(Number(value) * 100) / 100;
 }
