@@ -634,3 +634,368 @@
 .security-pattern-card .description-box {
   margin-top: 14px;
 }
+
+/* =========================================================
+   MOBILE-FIRST UX POLISH — SECURITY DETAIL / DATA PANELS
+   ========================================================= */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  background: #f5f7fb;
+  color: #172033;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+code {
+  display: inline;
+  max-width: 100%;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+
+/* Riduce effetto "documento Word" su titoli e testi */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
+}
+
+p {
+  line-height: 1.55;
+}
+
+/* Pannelli principali più app-like */
+.panel {
+  overflow: hidden;
+}
+
+.detail-section {
+  margin-top: 22px;
+  padding: 18px;
+  border: 1px solid #e2e8f0;
+  border-radius: 22px;
+  background: #ffffff;
+}
+
+.detail-section > h3 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 22px;
+}
+
+.detail-section p {
+  color: #475569;
+}
+
+/* Sezione storico e pattern più leggibile */
+.historical-section,
+.technical-patterns-detail-section {
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.06), transparent 34%),
+    #ffffff;
+}
+
+.historical-section__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+}
+
+.historical-section__header h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.historical-section__header p {
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 15px;
+}
+
+/* Bottoni più visibili e coerenti */
+.button,
+.historical-load-button,
+.secondary-button,
+.symbol-button,
+.overview-card__button,
+.overview-card__secondary-button {
+  min-height: 44px;
+  border-radius: 14px;
+  font-size: 14px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.historical-load-button {
+  width: auto;
+  min-width: 190px;
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+/* Stato e note più compatti */
+.description-box,
+.note-box,
+.audit-box {
+  border-radius: 18px;
+  font-size: 15px;
+}
+
+.description-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+/* Metriche più "card" */
+.metric-grid,
+.history-summary-grid,
+.quality-grid,
+.real-data-status-grid,
+.comparison-grid,
+.technical-grid,
+.disclosure-grid {
+  gap: 12px;
+}
+
+.metric-card {
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.metric-card h3 {
+  overflow-wrap: anywhere;
+}
+
+/* Card pattern più chiare */
+.pattern-card,
+.security-pattern-card,
+.quality-card,
+.comparison-card,
+.disclosure-card,
+.real-quote-card {
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+/* Tabelle più usabili su mobile */
+.history-table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 18px;
+}
+
+.history-table {
+  font-size: 14px;
+}
+
+.history-table th,
+.history-table td {
+  white-space: nowrap;
+}
+
+/* Badge leggibili */
+.quality-badge,
+.badge {
+  line-height: 1;
+}
+
+/* =========================================================
+   SMARTPHONE LAYOUT
+   ========================================================= */
+
+@media (max-width: 700px) {
+  .container {
+    width: min(100% - 20px, 1120px);
+    padding: 22px 0;
+  }
+
+  .disclaimer {
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+
+  .app-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-radius: 24px;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .app-nav__button {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 10px;
+    font-size: 13px;
+  }
+
+  .app-header {
+    margin-bottom: 20px;
+  }
+
+  .app-header h1,
+  h1 {
+    font-size: 34px;
+    line-height: 1.05;
+  }
+
+  .panel-header {
+    display: block;
+    margin-bottom: 18px;
+  }
+
+  .panel-header h2,
+  h2 {
+    font-size: 25px;
+    line-height: 1.15;
+  }
+
+  .subtitle {
+    margin-top: 12px;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .panel {
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .detail-section {
+    margin-top: 18px;
+    padding: 16px;
+    border-radius: 22px;
+  }
+
+  .detail-section > h3,
+  .historical-section__header h3 {
+    font-size: 22px;
+    line-height: 1.18;
+  }
+
+  .detail-section p,
+  .historical-section__header p {
+    font-size: 15px;
+  }
+
+  .metric-grid,
+  .history-summary-grid,
+  .quality-grid,
+  .real-data-status-grid,
+  .comparison-grid,
+  .technical-grid,
+  .disclosure-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card {
+    padding: 14px;
+  }
+
+  .metric-label {
+    font-size: 12px;
+  }
+
+  .metric-card h3 {
+    font-size: 18px;
+    line-height: 1.25;
+  }
+
+  .historical-section__header {
+    grid-template-columns: 1fr;
+  }
+
+  .historical-load-button {
+    width: 100%;
+  }
+
+  .history-table {
+    min-width: 760px;
+  }
+
+  .history-table th,
+  .history-table td {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .description-box,
+  .note-box,
+  .audit-box {
+    padding: 14px;
+    font-size: 14px;
+  }
+
+  .pattern-card__header,
+  .quality-card__header,
+  .comparison-card__header,
+  .disclosure-card__header,
+  .real-quote-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .button,
+  .secondary-button {
+    width: 100%;
+  }
+
+  .back-button {
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+}
+
+/* =========================================================
+   VERY SMALL DEVICES
+   ========================================================= */
+
+@media (max-width: 420px) {
+  .container {
+    width: calc(100% - 16px);
+  }
+
+  .app-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .app-header h1,
+  h1 {
+    font-size: 30px;
+  }
+
+  .panel-header h2,
+  h2 {
+    font-size: 23px;
+  }
+
+  .detail-section {
+    padding: 14px;
+  }
+
+  .description-box,
+  .note-box,
+  .audit-box {
+    font-size: 13px;
+  }
+}
