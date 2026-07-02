@@ -1,46 +1,57 @@
-cat > api/app.js <<'EOF'
-import quoteHandler from "../server/market/quote.js";
-import historyHandler from "../server/market/history.js";
-import historyDbHandler from "../server/market/history-db.js";
-import technicalPatternsDbHandler from "../server/market/technical-patterns-db.js";
-import dailyHistoryUpdateHandler from "../server/jobs/daily-history-update.js";
-import detectTechnicalPatternsHandler from "../server/jobs/detect-technical-patterns.js";
+const routeLoaders = {
+  "market/quote": () => import("../server/market/quote.js"),
+  "market/history": () => import("../server/market/history.js"),
+  "market/history-db": () => import("../server/market/history-db.js"),
+  "market/technical-patterns-db": () =>
+    import("../server/market/technical-patterns-db.js"),
 
-const routeHandlers = {
-  "health": healthHandler,
-  "market/quote": quoteHandler,
-  "market/history": historyHandler,
-  "market/history-db": historyDbHandler,
-  "market/technical-patterns-db": technicalPatternsDbHandler,
-  "jobs/daily-history-update": dailyHistoryUpdateHandler,
-  "jobs/detect-technical-patterns": detectTechnicalPatternsHandler
+  "jobs/daily-history-update": () =>
+    import("../server/jobs/daily-history-update.js"),
+  "jobs/detect-technical-patterns": () =>
+    import("../server/jobs/detect-technical-patterns.js")
 };
 
 export default async function handler(req, res) {
-  const route = getRoute(req);
-  const selectedHandler = routeHandlers[route];
+  try {
+    const route = getRoute(req);
 
-  if (!route) {
-    return res.status(200).json({
-      status: "ok",
-      app: "Market Intelligence App",
-      api_layer: "single Vercel Function router",
-      message: "API router is working. Pass a valid API path.",
-      available_routes: Object.keys(routeHandlers),
-      fetched_at: new Date().toISOString()
+    if (!route || route === "health") {
+      return healthHandler(req, res);
+    }
+
+    const loadRouteModule = routeLoaders[route];
+
+    if (!loadRouteModule) {
+      return res.status(404).json({
+        error: "API_ROUTE_NOT_FOUND",
+        message: `Route API non trovata: ${route}`,
+        available_routes: ["health", ...Object.keys(routeLoaders)],
+        fetched_at: new Date().toISOString()
+      });
+    }
+
+    const routeModule = await loadRouteModule();
+    const selectedHandler = routeModule.default;
+
+    if (typeof selectedHandler !== "function") {
+      return res.status(500).json({
+        error: "API_HANDLER_NOT_FOUND",
+        message: `Il modulo della route ${route} non esporta un default handler valido.`,
+        fetched_at: new Date().toISOString()
+      });
+    }
+
+    return await selectedHandler(req, res);
+  } catch (error) {
+    return res.status(500).json({
+      error: "API_ROUTER_CRASH_CAUGHT",
+      message: error.message,
+      route: getRoute(req),
+      fetched_at: new Date().toISOString(),
+      diagnostic:
+        "Il router unico ha intercettato un errore. Controlla path import, file spostati in server/, dipendenze npm e variabili ambiente."
     });
   }
-
-  if (!selectedHandler) {
-    return res.status(404).json({
-      error: "API_ROUTE_NOT_FOUND",
-      message: `Route API non trovata: ${route}`,
-      available_routes: Object.keys(routeHandlers),
-      fetched_at: new Date().toISOString()
-    });
-  }
-
-  return selectedHandler(req, res);
 }
 
 function healthHandler(req, res) {
@@ -49,6 +60,7 @@ function healthHandler(req, res) {
     app: "Market Intelligence App",
     api_layer: "single Vercel Function router",
     message: "Health endpoint is working correctly.",
+    available_routes: ["health", ...Object.keys(routeLoaders)],
     fetched_at: new Date().toISOString()
   });
 }
@@ -80,4 +92,3 @@ function normalizeRoute(route) {
     .replace(/\/+$/, "")
     .replace(/^app$/, "");
 }
-EOF
