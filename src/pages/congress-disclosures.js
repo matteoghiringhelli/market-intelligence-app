@@ -1,102 +1,37 @@
-import { mockCongressDisclosures } from "../data/mock-congress-disclosures.js";
+import { fetchRealCongressDisclosures } from "../services/congress-disclosures-api.js";
 
-function getMappingBadgeClass(disclosure) {
-  if (disclosure.ticker === "UNRESOLVED") {
-    return "quality-badge--warning";
+let selectedCongressSymbol = "AAPL";
+let selectedCongressChamber = "both";
+
+const congressSymbols = ["AAPL", "MSFT", "JPM", "NVDA", "AMZN"];
+
+const congressChambers = [
+  { id: "both", label: "House + Senate" },
+  { id: "house", label: "House" },
+  { id: "senate", label: "Senate" }
+];
+
+const mockCongressFallback = [
+  {
+    memberName: "Mock Disclosure",
+    description:
+      "Fallback educativo: se il provider non restituisce dati reali, questa sezione ricorda i limiti metodologici delle disclosure."
   }
-
-  return "quality-badge--ok";
-}
-
-function getDelayBadgeClass(disclosure) {
-  if (disclosure.reportingDelayDays >= 40) {
-    return "quality-badge--warning";
-  }
-
-  return "quality-badge--neutral";
-}
-
-function renderDisclosureCard(disclosure) {
-  const mappingBadgeClass = getMappingBadgeClass(disclosure);
-  const delayBadgeClass = getDelayBadgeClass(disclosure);
-
-  return `
-    <article class="disclosure-card">
-      <div class="disclosure-card__header">
-        <div>
-          <p class="eyebrow">${disclosure.disclosureId}</p>
-          <h3>${disclosure.assetDescription}</h3>
-          <p class="muted-text">
-            Dichiarante: ${disclosure.memberName} · Camera: ${disclosure.chamber}
-          </p>
-        </div>
-
-        <span class="quality-badge ${mappingBadgeClass}">
-          ${disclosure.ticker}
-        </span>
-      </div>
-
-      <div class="disclosure-grid">
-        <div>
-          <p class="metric-label">Tipo operazione</p>
-          <strong>${disclosure.transactionType}</strong>
-        </div>
-
-        <div>
-          <p class="metric-label">Intervallo dichiarato</p>
-          <strong>${disclosure.amountRange}</strong>
-        </div>
-
-        <div>
-          <p class="metric-label">Data operazione</p>
-          <strong>${disclosure.transactionDate}</strong>
-        </div>
-
-        <div>
-          <p class="metric-label">Data disclosure</p>
-          <strong>${disclosure.disclosureDate}</strong>
-        </div>
-      </div>
-
-      <section class="description-box">
-        <p>
-          Disclosure pubblica relativa a ${disclosure.assetDescription}.
-          La dichiarazione è stata pubblicata il ${disclosure.disclosureDate}
-          e fa riferimento a una transazione datata ${disclosure.transactionDate}.
-        </p>
-      </section>
-
-      <section class="disclosure-meta-row">
-        <span class="quality-badge ${delayBadgeClass}">
-          Ritardo dichiarazione: ${disclosure.reportingDelayDays} giorni
-        </span>
-
-        <span class="quality-badge ${mappingBadgeClass}">
-          ${disclosure.mappingStatus}
-        </span>
-      </section>
-
-      <section class="audit-box">
-        <p><strong>Fonte:</strong> ${disclosure.source}</p>
-        <p><strong>Raw reference URL:</strong> ${disclosure.rawReferenceUrl}</p>
-        <p><strong>Limiti:</strong> ${disclosure.limitations}</p>
-      </section>
-    </article>
-  `;
-}
+];
 
 export function renderCongressDisclosuresPage() {
-  const cards = mockCongressDisclosures.map(renderDisclosureCard).join("");
+  setTimeout(() => loadRealCongressDisclosures(), 0);
+
+  const mockCards = mockCongressFallback.map(renderMockDisclosureCard).join("");
 
   return `
     <header class="app-header">
       <div>
-        <p class="eyebrow">Public Disclosures</p>
+        <p class="eyebrow">Public Disclosure Layer</p>
         <h1>Congress Disclosures</h1>
         <p class="subtitle">
-          Sezione mock per visualizzare disclosure pubbliche, date di transazione,
-          date di pubblicazione, intervalli dichiarati, ritardo di reporting e stato
-          di normalizzazione dell'asset.
+          Disclosure pubbliche reali da fonte esterna, con lettura descrittiva
+          e limiti espliciti su ritardi, importi in range ed entity resolution.
         </p>
       </div>
     </header>
@@ -104,24 +39,263 @@ export function renderCongressDisclosuresPage() {
     <section class="panel">
       <div class="panel-header">
         <div>
-          <h2>Disclosure pubbliche mock</h2>
+          <h2>Congress Disclosures reali</h2>
           <p>
-            Questa pagina non interpreta le intenzioni dei dichiaranti e non suggerisce
-            alcuna azione. Mostra solo dati descrittivi, limiti e qualità della normalizzazione.
+            Dati recuperati da endpoint FMP House/Senate. Le fonti ufficiali restano
+            House Clerk e Senate Public Disclosure per verifica primaria.
           </p>
         </div>
       </div>
 
-      <section class="note-box">
-        <strong>Disclaimer specifico disclosure:</strong>
-        le disclosure pubbliche possono usare intervalli di valore ampi, essere pubblicate
-        con ritardo e contenere descrizioni asset non immediatamente associabili a un ticker.
-        Questa sezione ha finalità esclusivamente informativa ed educativa.
+      <section class="selector-section">
+        <p class="selector-label">Ticker</p>
+        <div class="symbol-selector">
+          ${congressSymbols.map(renderSymbolButton).join("")}
+        </div>
       </section>
 
-      <div class="stack disclosure-stack">
-        ${cards}
+      <section class="selector-section">
+        <p class="selector-label">Chamber</p>
+        <div class="symbol-selector">
+          ${congressChambers.map(renderChamberButton).join("")}
+        </div>
+      </section>
+
+      <div id="congress-disclosures-status" class="description-box">
+        Caricamento disclosure Congresso...
       </div>
+
+      <div id="congress-disclosures-real-content"></div>
+
+      <section class="detail-section">
+        <h3>Fallback mock educativo</h3>
+        <p class="muted-text">
+          Le disclosure hanno limiti strutturali: importi in range, ritardi di pubblicazione,
+          possibili errori di mapping ticker/asset e nessuna inferenza sulle intenzioni.
+        </p>
+        <div class="stack">
+          ${mockCards}
+        </div>
+      </section>
     </section>
   `;
+}
+
+function renderSymbolButton(symbol) {
+  const activeClass = selectedCongressSymbol === symbol ? "symbol-button--active" : "";
+
+  return `
+    <button
+      class="symbol-button ${activeClass}"
+      type="button"
+      onclick="selectCongressSymbol('${symbol}')"
+    >
+      ${symbol}
+    </button>
+  `;
+}
+
+function renderChamberButton(chamber) {
+  const activeClass = selectedCongressChamber === chamber.id ? "symbol-button--active" : "";
+
+  return `
+    <button
+      class="symbol-button ${activeClass}"
+      type="button"
+      onclick="selectCongressChamber('${chamber.id}')"
+    >
+      ${chamber.label}
+    </button>
+  `;
+}
+
+window.selectCongressSymbol = function selectCongressSymbol(symbol) {
+  selectedCongressSymbol = symbol;
+  updateCongressButtons();
+  loadRealCongressDisclosures();
+};
+
+window.selectCongressChamber = function selectCongressChamber(chamber) {
+  selectedCongressChamber = chamber;
+  updateCongressButtons();
+  loadRealCongressDisclosures();
+};
+
+async function loadRealCongressDisclosures() {
+  const statusEl = document.querySelector("#congress-disclosures-status");
+  const contentEl = document.querySelector("#congress-disclosures-real-content");
+
+  if (!statusEl || !contentEl) {
+    return;
+  }
+
+  statusEl.innerHTML = `
+    <p>
+      Caricamento disclosure per <strong>${selectedCongressSymbol}</strong>
+      (${selectedCongressChamber})...
+    </p>
+  `;
+
+  contentEl.innerHTML = "";
+
+  try {
+    const payload = await fetchRealCongressDisclosures({
+      symbol: selectedCongressSymbol,
+      chamber: selectedCongressChamber,
+      limit: 50
+    });
+
+    const records = payload?.data?.records || [];
+
+    if (!records.length) {
+      statusEl.innerHTML = `
+        <p>Nessuna disclosure reale trovata per <strong>${selectedCongressSymbol}</strong>.</p>
+      `;
+      return;
+    }
+
+    statusEl.innerHTML = `
+      <p>
+        Disclosure reali recuperate: <strong>${records.length}</strong>.
+        Completezza: <strong>${payload.data_quality?.completeness_score || 0}%</strong>.
+      </p>
+    `;
+
+    contentEl.innerHTML = renderDisclosureTable(payload);
+  } catch (error) {
+    statusEl.innerHTML = `
+      <p><strong>Errore Congress Disclosures:</strong> ${error.message}</p>
+      <p>La pagina resta disponibile con fallback mock.</p>
+    `;
+  }
+}
+
+function renderDisclosureTable(payload) {
+  const records = payload.data.records;
+
+  const rows = records
+    .map((record) => {
+      return `
+        <tr>
+          <td>${formatValue(record.chamber)}</td>
+          <td>${formatValue(record.member_name)}</td>
+          <td>${formatValue(record.ticker)}</td>
+          <td>${formatValue(record.asset_description)}</td>
+          <td>${formatValue(record.transaction_type)}</td>
+          <td>${formatValue(record.amount)}</td>
+          <td>${formatValue(record.transaction_date)}</td>
+          <td>${formatValue(record.disclosure_date)}</td>
+          <td>${formatValue(record.reporting_delay_days)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const cards = records.map(renderDisclosureMobileCard).join("");
+
+  return `
+    <section class="detail-section">
+      <h3>Disclosure reali</h3>
+
+      <div class="history-table-wrapper history-table-wrapper--desktop">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Chamber</th>
+              <th>Member</th>
+              <th>Ticker</th>
+              <th>Asset</th>
+              <th>Type</th>
+              <th>Amount</th>
+              <th>Transaction</th>
+              <th>Disclosure</th>
+              <th>Delay days</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="daily-history-card-list">
+        ${cards}
+      </div>
+
+      <section class="audit-box">
+        <p><strong>Fonte API:</strong> ${payload.data_quality?.source_id || "financial_modeling_prep"}</p>
+        <p><strong>Data as of:</strong> ${formatValue(payload.data_quality?.data_as_of)}</p>
+        <p><strong>Disclaimer:</strong> ${payload.disclaimer}</p>
+      </section>
+    </section>
+  `;
+}
+
+function renderDisclosureMobileCard(record) {
+  return `
+    <article class="daily-history-card">
+      <div class="daily-history-card__header">
+        <div>
+          <p class="metric-label">${formatValue(record.chamber)}</p>
+          <h3>${formatValue(record.ticker)}</h3>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          ${formatValue(record.transaction_type)}
+        </span>
+      </div>
+
+      <section class="description-box">
+        <p><strong>Member:</strong> ${formatValue(record.member_name)}</p>
+        <p><strong>Asset:</strong> ${formatValue(record.asset_description)}</p>
+        <p><strong>Amount:</strong> ${formatValue(record.amount)}</p>
+      </section>
+
+      <div class="daily-history-card__ohlc">
+        <div>
+          <p class="metric-label">Transaction</p>
+          <strong>${formatValue(record.transaction_date)}</strong>
+        </div>
+
+        <div>
+          <p class="metric-label">Disclosure</p>
+          <strong>${formatValue(record.disclosure_date)}</strong>
+        </div>
+
+        <div>
+          <p class="metric-label">Delay</p>
+          <strong>${formatValue(record.reporting_delay_days)}</strong>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderMockDisclosureCard(disclosure) {
+  return `
+    <article class="disclosure-card">
+      <h3>${disclosure.memberName}</h3>
+      <p>${disclosure.description}</p>
+    </article>
+  `;
+}
+
+function updateCongressButtons() {
+  document.querySelectorAll(".symbol-button").forEach((button) => {
+    const value = button.textContent.trim();
+    const chamber = congressChambers.find((item) => item.label === value);
+
+    button.classList.toggle(
+      "symbol-button--active",
+      value === selectedCongressSymbol || chamber?.id === selectedCongressChamber
+    );
+  });
+}
+
+function formatValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return "n/d";
+  }
+
+  return value;
 }
