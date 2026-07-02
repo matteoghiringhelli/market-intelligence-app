@@ -21,6 +21,10 @@ export function renderAppNav(currentView) {
       label: "Technical Patterns"
     },
     {
+      id: "interpretation-guide",
+      label: "Interpretation Guide"
+    },
+    {
       id: "congress-disclosures",
       label: "Congress Disclosures"
     },

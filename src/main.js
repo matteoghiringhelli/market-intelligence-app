@@ -7,6 +7,7 @@ import { renderRealDataTestPage } from "./pages/real-data-test.js";
 import { renderSecurityDetail } from "./pages/security-detail.js";
 import { renderPeerComparePage } from "./pages/peer-compare.js";
 import { renderTechnicalPatternsPage } from "./pages/technical-patterns.js";
+import { renderInterpretationGuidePage } from "./pages/interpretation-guide.js";
 import { renderCongressDisclosuresPage } from "./pages/congress-disclosures.js";
 import { renderDataQualityPanelPage } from "./pages/data-quality-panel.js";
 import { mockSecurities } from "./data/mock-securities.js";

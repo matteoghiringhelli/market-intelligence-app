@@ -1823,3 +1823,96 @@ p {
     flex-direction: column;
   }
 }
+
+/* =========================================================
+   INTERPRETATION GUIDE
+   ========================================================= */
+
+.interpretation-grid {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.interpretation-section-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 34%),
+    #ffffff;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.interpretation-section-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.interpretation-section-card__header h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.interpretation-list {
+  margin: 16px 0;
+  padding-left: 20px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.interpretation-list li {
+  margin: 8px 0;
+}
+
+.interpretation-example-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 22px;
+  padding: 18px;
+  background: #ffffff;
+}
+
+.interpretation-example-card h3 {
+  margin-top: 0;
+}
+
+.interpretation-example-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.interpretation-example-box {
+  border-radius: 18px;
+  padding: 16px;
+  line-height: 1.55;
+}
+
+.interpretation-example-box--bad {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.interpretation-example-box--good {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+@media (max-width: 700px) {
+  .interpretation-section-card {
+    padding: 16px;
+  }
+
+  .interpretation-section-card__header {
+    flex-direction: column;
+  }
+
+  .interpretation-example-grid {
+    grid-template-columns: 1fr;
+  }
+}
