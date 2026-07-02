@@ -4,6 +4,11 @@ import {
   runDailyHistoryUpdate,
   runDetectTechnicalPatterns
 } from "../services/operations-api.js";
+import {
+  getManualOperationsLog,
+  addManualOperationLogEntry,
+  clearManualOperationsLog
+} from "../state/manual-operations-log.js";
 
 const overviewCards = [
   {
@@ -160,6 +165,27 @@ function renderManualOperationsShell() {
       </div>
 
       <div id="manual-operations-result"></div>
+
+      <section class="manual-operations-log-card">
+        <div class="manual-operations-log-card__header">
+          <div>
+            <p class="eyebrow">Execution Log</p>
+            <h3>Ultimi job manuali</h3>
+          </div>
+
+          <button
+            class="secondary-button"
+            type="button"
+            onclick="clearManualOperationsLogView()"
+          >
+            Pulisci log
+          </button>
+        </div>
+
+        <div id="manual-operations-log">
+          ${renderManualOperationsLog(getManualOperationsLog())}
+        </div>
+      </section>
 
       <section class="audit-box">
         <p>
@@ -859,6 +885,8 @@ window.runManualHistoryJob = async function runManualHistoryJob() {
     return;
   }
 
+  const startedAt = new Date().toISOString();
+
   updateManualOperationsStatus("Avvio daily-history-update...", "loading");
 
   try {
@@ -871,11 +899,33 @@ window.runManualHistoryJob = async function runManualHistoryJob() {
     updateManualOperationsStatus("daily-history-update completato.", "success");
     renderManualOperationsResult(result);
 
+    addManualOperationLogEntry({
+      jobType: "daily-history-update",
+      status: "success",
+      symbols: params.symbols,
+      message: result?.summary
+        ? `OK: ${result.summary.successful_symbols}/${result.summary.requested_symbols} symbols`
+        : "Job storico completato.",
+      startedAt,
+      finishedAt: new Date().toISOString()
+    });
+    refreshManualOperationsLogView();
+
     if (typeof window.loadMarketSnapshot === "function") {
       await window.loadMarketSnapshot();
     }
   } catch (error) {
     updateManualOperationsStatus(error.message, "error");
+
+    addManualOperationLogEntry({
+      jobType: "daily-history-update",
+      status: "error",
+      symbols: params.symbols,
+      message: error.message,
+      startedAt,
+      finishedAt: new Date().toISOString()
+    });
+    refreshManualOperationsLogView();
   }
 };
 
@@ -886,6 +936,8 @@ window.runManualPatternJob = async function runManualPatternJob() {
     updateManualOperationsStatus(params.message, "error");
     return;
   }
+
+  const startedAt = new Date().toISOString();
 
   updateManualOperationsStatus("Avvio detect-technical-patterns...", "loading");
 
@@ -899,11 +951,33 @@ window.runManualPatternJob = async function runManualPatternJob() {
     updateManualOperationsStatus("detect-technical-patterns completato.", "success");
     renderManualOperationsResult(result);
 
+    addManualOperationLogEntry({
+      jobType: "detect-technical-patterns",
+      status: "success",
+      symbols: params.symbols,
+      message: result?.summary
+        ? `Pattern upserted: ${result.summary.total_patterns_upserted}`
+        : "Job pattern completato.",
+      startedAt,
+      finishedAt: new Date().toISOString()
+    });
+    refreshManualOperationsLogView();
+
     if (typeof window.loadMarketSnapshot === "function") {
       await window.loadMarketSnapshot();
     }
   } catch (error) {
     updateManualOperationsStatus(error.message, "error");
+
+    addManualOperationLogEntry({
+      jobType: "detect-technical-patterns",
+      status: "error",
+      symbols: params.symbols,
+      message: error.message,
+      startedAt,
+      finishedAt: new Date().toISOString()
+    });
+    refreshManualOperationsLogView();
   }
 };
 
@@ -914,6 +988,8 @@ window.runFullManualPipeline = async function runFullManualPipeline() {
     updateManualOperationsStatus(params.message, "error");
     return;
   }
+
+  const startedAt = new Date().toISOString();
 
   updateManualOperationsStatus("Pipeline completa avviata: Step 1 storico prezzi...", "loading");
 
@@ -937,18 +1013,40 @@ window.runFullManualPipeline = async function runFullManualPipeline() {
 
     updateManualOperationsStatus("Pipeline completa terminata.", "success");
 
+    const finishedAt = new Date().toISOString();
+
     renderManualOperationsResult({
       pipeline: "full-manual-pipeline",
       history: historyResult,
       patterns: patternResult,
-      finished_at: new Date().toISOString()
+      finished_at: finishedAt
     });
+
+    addManualOperationLogEntry({
+      jobType: "full-manual-pipeline",
+      status: "success",
+      symbols: params.symbols,
+      message: "Pipeline completa eseguita: storico + pattern.",
+      startedAt,
+      finishedAt
+    });
+    refreshManualOperationsLogView();
 
     if (typeof window.loadMarketSnapshot === "function") {
       await window.loadMarketSnapshot();
     }
   } catch (error) {
     updateManualOperationsStatus(error.message, "error");
+
+    addManualOperationLogEntry({
+      jobType: "full-manual-pipeline",
+      status: "error",
+      symbols: params.symbols,
+      message: error.message,
+      startedAt,
+      finishedAt: new Date().toISOString()
+    });
+    refreshManualOperationsLogView();
   }
 };
 
@@ -1085,4 +1183,69 @@ window.resetManualOperationsForm = function resetManualOperationsForm() {
     "Form ripristinato. CRON_SECRET rimosso dalla vista.",
     "success"
   );
+};
+
+function renderManualOperationsLog(logItems) {
+  if (!logItems.length) {
+    return `
+      <section class="note-box">
+        Nessun job manuale registrato in questa sessione/browser.
+      </section>
+    `;
+  }
+
+  const rows = logItems
+    .map((item) => {
+      const badgeClass =
+        item.status === "success"
+          ? "quality-badge--ok"
+          : item.status === "error"
+            ? "quality-badge--danger"
+            : "quality-badge--neutral";
+
+      return `
+        <article class="manual-operation-log-item">
+          <div class="manual-operation-log-item__top">
+            <div>
+              <p class="metric-label">${formatValue(item.jobType)}</p>
+              <h3>${formatValue(item.symbols)}</h3>
+            </div>
+
+            <span class="quality-badge ${badgeClass}">
+              ${formatValue(item.status)}
+            </span>
+          </div>
+
+          <p>${formatValue(item.message)}</p>
+
+          <div class="manual-operation-log-item__meta">
+            <span>Started: ${formatValue(item.startedAt)}</span>
+            <span>Finished: ${formatValue(item.finishedAt)}</span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <div class="manual-operations-log-list">
+      ${rows}
+    </div>
+  `;
+}
+
+function refreshManualOperationsLogView() {
+  const logEl = document.querySelector("#manual-operations-log");
+
+  if (!logEl) {
+    return;
+  }
+
+  logEl.innerHTML = renderManualOperationsLog(getManualOperationsLog());
+}
+
+window.clearManualOperationsLogView = function clearManualOperationsLogView() {
+  clearManualOperationsLog();
+  refreshManualOperationsLogView();
+  updateManualOperationsStatus("Execution Log locale pulito.", "success");
 };
