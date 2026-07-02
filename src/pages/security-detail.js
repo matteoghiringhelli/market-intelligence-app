@@ -46,6 +46,31 @@ export function renderSecurityDetail(security) {
         </article>
       </div>
 
+      <section class="detail-section security-data-actions">
+        <div class="security-data-actions__content">
+          <div>
+            <h3>Aggiorna dati titolo</h3>
+            <p>
+              Carica in sequenza lo storico giornaliero e i pattern tecnici reali
+              dal data layer Supabase per questo titolo.
+            </p>
+          </div>
+
+          <button
+            class="button security-data-actions__button"
+            type="button"
+            onclick="refreshSecurityData('${security.ticker}')"
+          >
+            Aggiorna dati titolo
+          </button>
+        </div>
+
+        <div id="security-refresh-status" class="description-box">
+          Dati reali non ancora aggiornati in questa vista.
+        </div>
+      </section>
+
+
       <section class="detail-section">
         <h3>Fondamentali descrittivi mock</h3>
         <p><strong>Gross Margin:</strong> ${security.grossMargin || "n/d"}</p>
@@ -438,3 +463,51 @@ function formatNumber(value) {
     maximumFractionDigits: 2
   }).format(numberValue);
 }
+window.refreshSecurityData = async function refreshSecurityData(symbol) {
+  const statusEl = document.querySelector("#security-refresh-status");
+
+  if (statusEl) {
+    statusEl.innerHTML = `
+      <p>
+        Aggiornamento dati reali in corso per <strong>${symbol}</strong>.
+        Step 1: storico giornaliero da Supabase.
+      </p>
+    `;
+  }
+
+  try {
+    if (typeof window.loadSecurityHistory === "function") {
+      await window.loadSecurityHistory(symbol);
+    }
+
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <p>
+          Storico giornaliero caricato. Step 2: caricamento pattern tecnici da Supabase.
+        </p>
+      `;
+    }
+
+    if (typeof window.loadSecurityTechnicalPatterns === "function") {
+      await window.loadSecurityTechnicalPatterns(symbol);
+    }
+
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <p>
+          Aggiornamento completato per <strong>${symbol}</strong>.
+          Storico e pattern tecnici sono stati richiesti al data layer Supabase.
+        </p>
+      `;
+    }
+  } catch (error) {
+    if (statusEl) {
+      statusEl.innerHTML = `
+        <p><strong>Errore durante aggiornamento dati titolo:</strong> ${error.message}</p>
+        <p>
+          La scheda resta disponibile con dati mock e con eventuali dati già caricati.
+        </p>
+      `;
+    }
+  }
+};

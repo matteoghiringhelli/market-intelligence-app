@@ -999,3 +999,44 @@ p {
     font-size: 13px;
   }
 }
+
+.security-data-actions {
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 34%),
+    #ffffff;
+}
+
+.security-data-actions__content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.security-data-actions__content h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.security-data-actions__content p {
+  margin: 8px 0 0;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.security-data-actions__button {
+  width: auto;
+  min-width: 190px;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .security-data-actions__content {
+    grid-template-columns: 1fr;
+  }
+
+  .security-data-actions__button {
+    width: 100%;
+  }
+}
