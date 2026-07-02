@@ -1351,3 +1351,30 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   DASHBOARD — TECHNICAL PATTERN STATUS
+   ========================================================= */
+
+.dashboard-pattern-summary {
+  margin-top: 14px;
+  border-radius: 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.dashboard-pattern-summary--empty {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.dashboard-pattern-summary p {
+  margin: 6px 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.dashboard-card-badges {
+  min-width: 120px;
+}

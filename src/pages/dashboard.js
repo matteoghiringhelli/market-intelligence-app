@@ -1,5 +1,6 @@
 import { mockSecurities } from "../data/mock-securities.js";
 import { fetchRealQuote } from "../services/real-market-api.js";
+import { fetchTechnicalPatternsFromDb } from "../services/technical-patterns-api.js";
 import {
   setRealDataStatus,
   resetRealDataStatus
@@ -7,13 +8,22 @@ import {
 
 let dashboardProvider = "fmp";
 let dashboardQuotes = {};
+let dashboardTechnicalPatterns = {};
 let dashboardLoading = false;
+let dashboardPatternLoading = false;
 let dashboardError = null;
+let dashboardPatternError = null;
 let dashboardLastUpdate = null;
+let dashboardPatternLastUpdate = null;
 
 function renderSecurityCard(security) {
   const realQuote = dashboardQuotes[security.ticker];
   const hasRealQuote = Boolean(realQuote);
+
+  const patternInfo = dashboardTechnicalPatterns[security.ticker];
+  const hasPatternInfo = Boolean(patternInfo);
+
+  const patternBadge = renderPatternStatusBadge(security.ticker, patternInfo);
 
   const priceBlock = hasRealQuote
     ? `
@@ -40,6 +50,20 @@ function renderSecurityCard(security) {
     `
     : `<span class="quality-badge quality-badge--neutral">Mock</span>`;
 
+  const patternSummaryBlock = hasPatternInfo
+    ? `
+      <div class="dashboard-pattern-summary">
+        <p><strong>Pattern tecnici:</strong> ${patternInfo.patternsCount}</p>
+        <p><strong>Ultimo pattern:</strong> ${formatValue(patternInfo.latestPatternName)}</p>
+        <p><strong>Computed at:</strong> ${formatValue(patternInfo.latestComputedAt)}</p>
+      </div>
+    `
+    : `
+      <div class="dashboard-pattern-summary dashboard-pattern-summary--empty">
+        <p><strong>Pattern tecnici:</strong> non caricati</p>
+      </div>
+    `;
+
   const auditBlock = hasRealQuote
     ? `
       <section class="audit-box dashboard-audit-box">
@@ -63,9 +87,11 @@ function renderSecurityCard(security) {
           <h2>${security.ticker}</h2>
           <p>${security.companyName}</p>
         </div>
+
         <div class="dashboard-card-badges">
           <span class="badge">${security.exchange}</span>
           ${qualityBadge}
+          ${patternBadge}
         </div>
       </div>
 
@@ -76,6 +102,7 @@ function renderSecurityCard(security) {
         <p><strong>Ultimo aggiornamento mock:</strong> ${security.lastUpdate}</p>
 
         ${priceBlock}
+        ${patternSummaryBlock}
       </div>
 
       ${auditBlock}
@@ -84,6 +111,38 @@ function renderSecurityCard(security) {
         Apri scheda titolo
       </button>
     </article>
+  `;
+}
+
+function renderPatternStatusBadge(ticker, patternInfo) {
+  if (dashboardPatternLoading) {
+    return `
+      <span class="quality-badge quality-badge--neutral">
+        Pattern...
+      </span>
+    `;
+  }
+
+  if (!patternInfo) {
+    return `
+      <span class="quality-badge quality-badge--warning">
+        Pattern n/d
+      </span>
+    `;
+  }
+
+  if (patternInfo.patternsCount > 0) {
+    return `
+      <span class="quality-badge quality-badge--ok">
+        ${patternInfo.patternsCount} pattern
+      </span>
+    `;
+  }
+
+  return `
+    <span class="quality-badge quality-badge--warning">
+      0 pattern
+    </span>
   `;
 }
 
@@ -119,14 +178,23 @@ function renderDashboardControls() {
           onclick="refreshDashboardRealQuotes()"
           ${dashboardLoading ? "disabled" : ""}
         >
-          ${dashboardLoading ? "Caricamento..." : "Carica quote reali"}
+          ${dashboardLoading ? "Caricamento quote..." : "Carica quote reali"}
+        </button>
+
+        <button
+          class="secondary-button"
+          type="button"
+          onclick="refreshDashboardTechnicalPatterns()"
+          ${dashboardPatternLoading ? "disabled" : ""}
+        >
+          ${dashboardPatternLoading ? "Caricamento pattern..." : "Carica stato pattern"}
         </button>
 
         <button
           class="secondary-button"
           type="button"
           onclick="clearDashboardRealQuotes()"
-          ${dashboardLoading ? "disabled" : ""}
+          ${dashboardLoading || dashboardPatternLoading ? "disabled" : ""}
         >
           Torna ai mock
         </button>
@@ -136,48 +204,89 @@ function renderDashboardControls() {
 }
 
 function renderDashboardStatus() {
+  const statusBlocks = [];
+
   if (dashboardLoading) {
-    return `
+    statusBlocks.push(`
       <section class="description-box">
         <p>
           Caricamento quote reali tramite provider <strong>${dashboardProvider}</strong>.
           Le richieste vengono eseguite una alla volta per rispettare i limiti free.
         </p>
       </section>
-    `;
+    `);
+  }
+
+  if (dashboardPatternLoading) {
+    statusBlocks.push(`
+      <section class="description-box">
+        <p>
+          Caricamento stato pattern tecnici da Supabase.
+          La Dashboard resta leggibile anche durante il caricamento.
+        </p>
+      </section>
+    `);
   }
 
   if (dashboardError) {
-    return `
+    statusBlocks.push(`
       <section class="audit-box">
-        <p><strong>Messaggio API:</strong> ${dashboardError}</p>
+        <p><strong>Messaggio API quote:</strong> ${dashboardError}</p>
         <p>
           La Dashboard resta utilizzabile con dati mock. Se il messaggio riguarda limiti free,
           riduci le richieste o usa un provider alternativo.
         </p>
       </section>
-    `;
+    `);
+  }
+
+  if (dashboardPatternError) {
+    statusBlocks.push(`
+      <section class="audit-box">
+        <p><strong>Messaggio API pattern:</strong> ${dashboardPatternError}</p>
+        <p>
+          I pattern restano opzionali. Verifica che il job tecnico abbia popolato
+          <code>technical_patterns</code>.
+        </p>
+      </section>
+    `);
   }
 
   if (dashboardLastUpdate) {
-    return `
+    statusBlocks.push(`
       <section class="description-box">
         <p>
           Quote reali caricate correttamente.
-          Ultimo aggiornamento UI: <strong>${dashboardLastUpdate}</strong>.
+          Ultimo aggiornamento quote: <strong>${dashboardLastUpdate}</strong>.
           Provider: <strong>${dashboardProvider}</strong>.
         </p>
+      </section>
+    `);
+  }
+
+  if (dashboardPatternLastUpdate) {
+    statusBlocks.push(`
+      <section class="description-box">
+        <p>
+          Stato pattern tecnici aggiornato.
+          Ultimo aggiornamento pattern: <strong>${dashboardPatternLastUpdate}</strong>.
+        </p>
+      </section>
+    `);
+  }
+
+  if (!statusBlocks.length) {
+    return `
+      <section class="note-box">
+        <strong>Modalità sicura:</strong>
+        la Dashboard parte con dati mock per evitare consumo automatico delle API free.
+        Usa “Carica quote reali” o “Carica stato pattern” solo quando vuoi aggiornare
+        i ticker visibili.
       </section>
     `;
   }
 
-  return `
-    <section class="note-box">
-      <strong>Modalità sicura:</strong>
-      la Dashboard parte con dati mock per evitare consumo automatico delle API free.
-      Usa “Carica quote reali” solo quando vuoi aggiornare i ticker visibili.
-    </section>
-  `;
+  return statusBlocks.join("");
 }
 
 function renderDashboardContent() {
@@ -188,7 +297,7 @@ function renderDashboardContent() {
       <div>
         <h2>Dashboard titoli</h2>
         <p>
-          Dashboard con fallback mock e quote reali on-demand tramite route multi-provider.
+          Dashboard con fallback mock, quote reali on-demand e stato pattern tecnici da Supabase.
         </p>
       </div>
     </div>
@@ -241,8 +350,11 @@ window.setDashboardProvider = function setDashboardProvider(provider) {
 
 window.clearDashboardRealQuotes = function clearDashboardRealQuotes() {
   dashboardQuotes = {};
+  dashboardTechnicalPatterns = {};
   dashboardError = null;
+  dashboardPatternError = null;
   dashboardLastUpdate = null;
+  dashboardPatternLastUpdate = null;
 
   resetRealDataStatus();
 
@@ -305,6 +417,37 @@ window.refreshDashboardRealQuotes = async function refreshDashboardRealQuotes() 
     });
   } finally {
     dashboardLoading = false;
+    refreshDashboardPanel();
+  }
+};
+
+window.refreshDashboardTechnicalPatterns = async function refreshDashboardTechnicalPatterns() {
+  dashboardPatternLoading = true;
+  dashboardPatternError = null;
+  refreshDashboardPanel();
+
+  const nextPatternStatus = {};
+
+  try {
+    for (const security of mockSecurities) {
+      const payload = await fetchTechnicalPatternsFromDb(security.ticker, 20);
+      const patterns = payload?.data?.patterns || [];
+      const latestPattern = patterns[0] || null;
+
+      nextPatternStatus[security.ticker] = {
+        patternsCount: patterns.length,
+        latestPatternName: latestPattern?.pattern_name || null,
+        latestComputedAt: latestPattern?.computed_at || null,
+        sourceId: latestPattern?.source_id || payload?.data_quality?.source_id || null
+      };
+    }
+
+    dashboardTechnicalPatterns = nextPatternStatus;
+    dashboardPatternLastUpdate = new Date().toISOString();
+  } catch (error) {
+    dashboardPatternError = error.message;
+  } finally {
+    dashboardPatternLoading = false;
     refreshDashboardPanel();
   }
 };
