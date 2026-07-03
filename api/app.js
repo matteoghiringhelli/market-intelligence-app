@@ -104,5 +104,6 @@ function normalizeRoute(route) {
   return String(route || "")
     .replace(/^\/+/, "")
     .replace(/\/+$/, "")
-    .replace(/^app$/, "");
+    .replace(/^app$/, "")
+    .replace(/^api\/+/, "");
 }
