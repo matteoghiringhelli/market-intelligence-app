@@ -44,7 +44,7 @@ export default async function handler(req, res) {
         limit
       });
 
-      if (!result.ok && result.status === 402) {
+      if (!result.ok && isFmpCongressPremiumRequired(result)) {
         return res.status(200).json({
           data: {
             symbol: symbol || null,
@@ -52,11 +52,11 @@ export default async function handler(req, res) {
             source: "provider-unavailable",
             records_count: 0,
             records: [],
-            warnings: result.payload?.failures || [],
+            warnings: buildPremiumWarnings(result),
             availability: {
               status: "provider_plan_required",
               reason:
-                "FMP ha risposto HTTP 402 sugli endpoint Congress. Il dataset non è disponibile con il piano/API key attuale."
+                "FMP ha risposto HTTP 402 sugli endpoint Congress. Il dataset House/Senate trades non è disponibile con il piano/API key attuale."
             }
           },
           data_quality: {
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
             completeness_score: 0
           },
           disclaimer:
-            "Congress disclosures non disponibili tramite FMP con il piano attuale. La sezione resta educativa; fonti ufficiali primarie: House Clerk e Senate Public Disclosure."
+            "Congress disclosures non disponibili tramite FMP con il piano/API key attuale. La sezione resta educativa; fonti ufficiali primarie: House Clerk e Senate Public Disclosure."
         });
       }
 
@@ -128,6 +128,66 @@ export default async function handler(req, res) {
       fetched_at: new Date().toISOString()
     });
   }
+}
+
+function isFmpCongressPremiumRequired(result) {
+  if (result.status === 402) {
+    return true;
+  }
+
+  const payload = result.payload || {};
+
+  if (payload.status === 402) {
+    return true;
+  }
+
+  if (payload.error === "FMP_CONGRESS_PREMIUM_REQUIRED") {
+    return true;
+  }
+
+  if (
+    payload.error === "FMP_CONGRESS_HTTP_ERROR" &&
+    Number(payload.status) === 402
+  ) {
+    return true;
+  }
+
+  if (Array.isArray(payload.failures)) {
+    return payload.failures.some((failure) => {
+      return (
+        Number(failure.status) === 402 ||
+        failure.error === "FMP_CONGRESS_PREMIUM_REQUIRED" ||
+        (
+          failure.error === "FMP_CONGRESS_HTTP_ERROR" &&
+          Number(failure.status) === 402
+        )
+      );
+    });
+  }
+
+  return false;
+}
+
+function buildPremiumWarnings(result) {
+  const payload = result.payload || {};
+
+  if (Array.isArray(payload.failures)) {
+    return payload.failures;
+  }
+
+  return [
+    {
+      endpoint: payload.endpoint || null,
+      chamber: payload.chamber || null,
+      status: payload.status || result.status || 402,
+      error: payload.error || "FMP_CONGRESS_PREMIUM_REQUIRED",
+      message:
+        payload.message ||
+        "Endpoint FMP Congress non disponibile con il piano/API key attuale.",
+      source_id: payload.source_id || "financial_modeling_prep",
+      fetched_at: payload.fetched_at || new Date().toISOString()
+    }
+  ];
 }
 
 function parseLimit(limitQuery) {
