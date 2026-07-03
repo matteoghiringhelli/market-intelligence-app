@@ -2,15 +2,25 @@ const routeLoaders = {
   "market/quote": () => import("../server/market/quote.js"),
   "market/history": () => import("../server/market/history.js"),
   "market/history-db": () => import("../server/market/history-db.js"),
+
   "market/technical-patterns-db": () =>
     import("../server/market/technical-patterns-db.js"),
-  "market/data-quality-db": () => import("../server/market/data-quality-db.js"),
-  "market/peer-compare-db": () => import("../server/market/peer-compare-db.js"),
+
+  "market/data-quality-db": () =>
+    import("../server/market/data-quality-db.js"),
+
+  "market/peer-compare-db": () =>
+    import("../server/market/peer-compare-db.js"),
+
   "market/congress-disclosures-db": () =>
     import("../server/market/congress-disclosures-db.js"),
 
+  "market/congress-official-filings-db": () =>
+    import("../server/market/congress-official-filings-db.js"),
+
   "jobs/daily-history-update": () =>
     import("../server/jobs/daily-history-update.js"),
+
   "jobs/detect-technical-patterns": () =>
     import("../server/jobs/detect-technical-patterns.js")
 };

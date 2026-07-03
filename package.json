@@ -12,6 +12,8 @@
     "vite": "^8.1.1"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.110.0"
+    "@supabase/supabase-js": "^2.110.0",
+    "fast-xml-parser": "^5.9.3",
+    "jszip": "^3.10.1"
   }
 }
