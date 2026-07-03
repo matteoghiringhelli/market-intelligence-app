@@ -19,10 +19,16 @@ export async function parseOfficialHousePtrPdf({
   documentUrl,
   docId,
   memberName = null,
-  filingDate = null
+  filingDate = null,
+  filingYear = null
 }) {
   const fetchedAt = new Date().toISOString();
-  const resolvedDocumentUrl = resolveHouseDocumentUrl({ documentUrl, docId });
+  const resolvedDocumentUrl = resolveHouseDocumentUrl({
+    documentUrl,
+    docId,
+    filingYear,
+    filingDate
+  });
 
   if (!resolvedDocumentUrl) {
     return {
@@ -168,9 +174,37 @@ function extractTextWithPdf2Json(pdfBuffer) {
   });
 }
 
-function resolveHouseDocumentUrl({ documentUrl, docId }) {
+function resolveHouseDocumentUrl({
+  documentUrl,
+  docId,
+  filingYear,
+  filingDate
+}) {
+  const inferredYear =
+    filingYear ||
+    inferYearFromDate(filingDate) ||
+    null;
+
   if (documentUrl) {
-    return String(documentUrl).trim();
+    const normalizedDocumentUrl = String(documentUrl).trim();
+
+    if (
+      inferredYear &&
+      normalizedDocumentUrl.includes("/public_disc/ptr-pdfs/") &&
+      !normalizedDocumentUrl.includes(`/ptr-pdfs/${String(inferredYear).trim()}/`)
+    ) {
+      const match = normalizedDocumentUrl.match(/\/ptr-pdfs\/([0-9]+)\.pdf$/i);
+
+      if (match?.[1]) {
+        return `${HOUSE_BASE_URL}/public_disc/ptr-pdfs/${String(inferredYear).trim()}/${match[1]}.pdf`;
+      }
+    }
+
+    return normalizedDocumentUrl;
+  }
+
+  if (docId && inferredYear) {
+    return `${HOUSE_BASE_URL}/public_disc/ptr-pdfs/${String(inferredYear).trim()}/${String(docId).trim()}.pdf`;
   }
 
   if (docId) {
@@ -179,6 +213,21 @@ function resolveHouseDocumentUrl({ documentUrl, docId }) {
 
   return null;
 }
+
+function inferYearFromDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.getUTCFullYear();
+}
+
 
 function normalizeText(text) {
   return String(text || "")

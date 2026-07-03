@@ -584,7 +584,7 @@ function renderOfficialHouseFilingCard(record) {
       <button
         class="secondary-button official-pdf-parse-button"
         type="button"
-        onclick="parseOfficialHousePdfFromUi('${formatJsString(record.doc_id)}', '${formatJsString(record.document_url)}', '${formatJsString(`${record.filer_first_name || ""} ${record.filer_last_name || ""}`.trim())}', '${formatJsString(record.filing_date)}')"
+        onclick="parseOfficialHousePdfFromUi('${formatJsString(record.doc_id)}', '${formatJsString(record.document_url)}', '${formatJsString(`${record.filer_first_name || ""} ${record.filer_last_name || ""}`.trim())}', '${formatJsString(record.filing_date)}', '${formatJsString(record.filing_year)}')"
       >
         Estrai transazioni PDF
       </button>
@@ -736,7 +736,8 @@ window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
   docId,
   documentUrl,
   memberName,
-  filingDate
+  filingDate,
+  filingYear
 ) {
   const statusEl = document.querySelector("#official-house-pdf-parser-status");
 
@@ -759,6 +760,7 @@ window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
       documentUrl,
       memberName,
       filingDate,
+      filingYear,
       persist: true,
       limit: 50
     });

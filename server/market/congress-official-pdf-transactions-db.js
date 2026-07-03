@@ -15,6 +15,9 @@ export default async function handler(req, res) {
   const filingDate = req.query.filingDate
     ? String(req.query.filingDate).trim()
     : null;
+  const filingYear = req.query.filingYear
+    ? Number(req.query.filingYear)
+    : inferYearFromDate(filingDate);
   const persist = String(req.query.persist || "true") === "true";
   const limit = parseLimit(req.query.limit);
 
@@ -23,7 +26,8 @@ export default async function handler(req, res) {
       documentUrl,
       docId,
       memberName,
-      filingDate
+      filingDate,
+      filingYear
     });
 
     if (!result.ok) {
@@ -76,4 +80,19 @@ function parseLimit(limitQuery) {
   }
 
   return Math.min(parsed, 100);
+}
+
+
+function inferYearFromDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.getUTCFullYear();
 }

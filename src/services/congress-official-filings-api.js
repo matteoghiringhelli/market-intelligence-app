@@ -82,6 +82,7 @@ export async function parseOfficialHouseFilingPdf({
   documentUrl,
   memberName = "",
   filingDate = "",
+  filingYear = null,
   persist = true,
   limit = 50
 } = {}) {
@@ -104,6 +105,10 @@ export async function parseOfficialHouseFilingPdf({
 
   if (filingDate) {
     params.set("filingDate", filingDate);
+  }
+
+  if (filingYear) {
+    params.set("filingYear", String(filingYear));
   }
 
   const response = await fetch(

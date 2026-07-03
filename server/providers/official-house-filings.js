@@ -334,7 +334,7 @@ function normalizeHouseFiling({
     state: pickValue(item, ["State", "state"]) || null,
     district: pickValue(item, ["District", "district"]) || null,
     filing_date: filingDate || null,
-    document_url: normalizeDocumentUrl(rawDocumentUrl, docId),
+    document_url: normalizeDocumentUrl(rawDocumentUrl, docId, year),
     source_id: "house_official_financial_disclosure",
     source_url: sourceUrl,
     fetched_at: fetchedAt,
@@ -373,17 +373,22 @@ function pickValue(object, candidates) {
   return null;
 }
 
-function normalizeDocumentUrl(rawDocumentUrl, docId) {
+function normalizeDocumentUrl(rawDocumentUrl, docId, year) {
   if (rawDocumentUrl) {
     return normalizeHouseUrl(rawDocumentUrl);
   }
 
+  if (docId && year) {
+    return `${HOUSE_BASE_URL}/public_disc/ptr-pdfs/${String(year).trim()}/${String(docId).trim()}.pdf`;
+  }
+
   if (docId) {
-    return `${HOUSE_BASE_URL}/public_disc/ptr-pdfs/${docId}.pdf`;
+    return `${HOUSE_BASE_URL}/public_disc/ptr-pdfs/${String(docId).trim()}.pdf`;
   }
 
   return null;
 }
+
 
 function mapHouseFilingType(type) {
   const normalizedType = String(type || "").trim().toUpperCase();
