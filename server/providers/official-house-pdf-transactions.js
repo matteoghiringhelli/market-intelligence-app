@@ -1,7 +1,7 @@
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
-const pdfParse = require("pdf-parse");
+const PDFParser = require("pdf2json");
 
 const HOUSE_BASE_URL = "https://disclosures-clerk.house.gov";
 
@@ -56,11 +56,11 @@ export async function parseOfficialHousePtrPdf({
     }
 
     const pdfBuffer = Buffer.from(await response.arrayBuffer());
-    const parsedPdf = await pdfParse(pdfBuffer);
-    const text = normalizeText(parsedPdf.text || "");
+    const text = await extractTextWithPdf2Json(pdfBuffer);
+    const normalizedText = normalizeText(text);
 
     const metadata = extractHousePtrMetadata({
-      text,
+      text: normalizedText,
       memberName,
       filingDate,
       docId,
@@ -68,7 +68,8 @@ export async function parseOfficialHousePtrPdf({
       fetchedAt
     });
 
-    const transactionCandidates = extractTransactionCandidates(text);
+    const transactionCandidates = extractTransactionCandidates(normalizedText);
+
     const records = transactionCandidates.map((candidate) =>
       normalizeTransactionCandidate({
         candidate,
@@ -97,10 +98,10 @@ export async function parseOfficialHousePtrPdf({
           document_url: resolvedDocumentUrl,
           member_name: metadata.member_name,
           filing_date: metadata.filing_date,
-          extracted_text_length: text.length,
+          extracted_text_length: normalizedText.length,
           records_count: filteredRecords.length,
           records: filteredRecords,
-          parser_notes: buildParserNotes(filteredRecords, text)
+          parser_notes: buildParserNotes(filteredRecords, normalizedText)
         },
         data_quality: {
           source_id: "house_official_ptr_pdf",
@@ -125,6 +126,46 @@ export async function parseOfficialHousePtrPdf({
       }
     };
   }
+}
+
+function extractTextWithPdf2Json(pdfBuffer) {
+  return new Promise((resolve, reject) => {
+    const pdfParser = new PDFParser();
+
+    pdfParser.on("pdfParser_dataError", (errorData) => {
+      reject(new Error(errorData?.parserError || "Errore parsing PDF con pdf2json."));
+    });
+
+    pdfParser.on("pdfParser_dataReady", (pdfData) => {
+      const pages = pdfData?.Pages || [];
+
+      const text = pages
+        .map((page) => {
+          const texts = page.Texts || [];
+
+          return texts
+            .map((textItem) => {
+              const runs = textItem.R || [];
+
+              return runs
+                .map((run) => {
+                  try {
+                    return decodeURIComponent(run.T || "");
+                  } catch {
+                    return run.T || "";
+                  }
+                })
+                .join("");
+            })
+            .join(" ");
+        })
+        .join("\n");
+
+      resolve(text);
+    });
+
+    pdfParser.parseBuffer(pdfBuffer);
+  });
 }
 
 function resolveHouseDocumentUrl({ documentUrl, docId }) {
