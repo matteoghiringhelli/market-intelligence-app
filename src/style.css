@@ -2233,3 +2233,25 @@ p {
     radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 34%),
     #ffffff;
 }
+
+/* =========================================================
+   OFFICIAL HOUSE PDF PARSER — CLICK FIX
+   ========================================================= */
+
+.official-filing-link {
+  width: 100%;
+  margin-top: 12px;
+  text-decoration: none;
+}
+
+.official-pdf-parse-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.official-pdf-parser-result {
+  margin-top: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 34%),
+    #ffffff;
+}

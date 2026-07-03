@@ -175,9 +175,9 @@ function renderOfficialHouseFilingsSection() {
         Caricamento filing ufficiali House...
       </div>
 
-      <div id="official-house-filings-content"></div>
-
       <div id="official-house-pdf-parser-status"></div>
+
+      <div id="official-house-filings-content"></div>
     </section>
   `;
 }
@@ -552,6 +552,16 @@ function renderOfficialHouseFilingsTable(payload) {
 }
 
 function renderOfficialHouseFilingCard(record) {
+  const memberName = `${record.filer_first_name || ""} ${record.filer_last_name || ""}`.trim();
+
+  const documentLink = record.document_url
+    ? `
+      ${escapeHtmlAttribute(record.document_url)}
+        Apri documento ufficiale
+      </a>
+    `
+    : "";
+
   return `
     <article class="daily-history-card">
       <div class="daily-history-card__header">
@@ -571,20 +581,16 @@ function renderOfficialHouseFilingCard(record) {
         <p><strong>Type:</strong> ${formatValue(record.filing_type_label)}</p>
       </section>
 
-      ${
-        record.document_url
-          ? `
-            ${record.document_url}
-              Apri documento ufficiale
-            </a>
-          `
-          : ""
-      }
+      ${documentLink}
 
       <button
         class="secondary-button official-pdf-parse-button"
         type="button"
-        onclick="parseOfficialHousePdfFromUi('${formatJsString(record.doc_id)}', '${formatJsString(record.document_url)}', '${formatJsString(`${record.filer_first_name || ""} ${record.filer_last_name || ""}`.trim())}', '${formatJsString(record.filing_date)}', '${formatJsString(record.filing_year)}')"
+        data-doc-id="${escapeHtmlAttribute(record.doc_id)}"
+        data-document-url="${escapeHtmlAttribute(record.document_url)}"
+        data-member-name="${escapeHtmlAttribute(memberName)}"
+        data-filing-date="${escapeHtmlAttribute(record.filing_date)}"
+        data-filing-year="${escapeHtmlAttribute(record.filing_year)}"
       >
         Estrai transazioni PDF
       </button>
@@ -820,4 +826,125 @@ function formatJsString(value) {
     .replaceAll("'", "\\'")
     .replaceAll("\n", " ")
     .replaceAll("\r", " ");
+}
+
+if (typeof window !== "undefined" && !window.__officialHousePdfParserBound) {
+  window.__officialHousePdfParserBound = true;
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest(".official-pdf-parse-button");
+
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+
+    window.parseOfficialHousePdfFromUi(
+      button.dataset.docId,
+      button.dataset.documentUrl,
+      button.dataset.memberName,
+      button.dataset.filingDate,
+      button.dataset.filingYear
+    );
+  });
+}
+
+window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
+  docId,
+  documentUrl,
+  memberName,
+  filingDate,
+  filingYear
+) {
+  const statusEl = document.querySelector("#official-house-pdf-parser-status");
+
+  if (!statusEl) {
+    return;
+  }
+
+  statusEl.scrollIntoView({
+    behavior: "smooth",
+    block: "center"
+  });
+
+  statusEl.innerHTML = `
+    <section class="description-box">
+      <p>
+        Estrazione transazioni dal PDF ufficiale House in corso.
+        Doc ID: <strong>${formatValue(docId)}</strong>.
+      </p>
+      <p class="muted-text">
+        Documento: ${formatValue(documentUrl)}
+      </p>
+    </section>
+  `;
+
+  try {
+    const payload = await parseOfficialHouseFilingPdf({
+      docId,
+      documentUrl,
+      memberName,
+      filingDate,
+      filingYear,
+      persist: true,
+      limit: 50
+    });
+
+    const recordsCount = payload?.data?.records_count || 0;
+    const upserted = payload?.persistence?.upserted || 0;
+    const notes = payload?.data?.parser_notes || [];
+
+    statusEl.innerHTML = `
+      <section class="detail-section official-pdf-parser-result">
+        <div class="real-data-section-header">
+          <div>
+            <p class="eyebrow">PDF Transaction Parser</p>
+            <h3>Estrazione completata</h3>
+            <p class="muted-text">
+              Record estratti: <strong>${recordsCount}</strong>.
+              Record persistiti: <strong>${upserted}</strong>.
+            </p>
+          </div>
+
+          <span class="quality-badge quality-badge--neutral">
+            PDF parser V1
+          </span>
+        </div>
+
+        <section class="note-box">
+          ${
+            notes.length
+              ? notes.map((note) => `<p>${note}</p>`).join("")
+              : "<p>Nessuna nota parser disponibile.</p>"
+          }
+        </section>
+
+        <section class="audit-box">
+          <p>
+            Le transazioni estratte sono state inserite in
+            <code>congress_disclosures</code> se il parser ha individuato righe compatibili.
+          </p>
+        </section>
+      </section>
+    `;
+  } catch (error) {
+    statusEl.innerHTML = `
+      <section class="audit-box">
+        <p><strong>Errore parser PDF House:</strong> ${error.message}</p>
+        <p>
+          Il PDF potrebbe avere layout non testuale, tabella non standard o richiedere OCR/parser dedicato.
+        </p>
+      </section>
+    `;
+  }
+};
+
+function escapeHtmlAttribute(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
