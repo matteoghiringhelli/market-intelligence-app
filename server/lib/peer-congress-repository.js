@@ -14,15 +14,15 @@ export async function upsertPeerGroup({
     .from("peer_groups")
     .upsert(
       {
-        base_ticker: baseTicker,
-        provider,
-        source_id: sourceId,
+        base_ticker: sanitizeTextForPostgres(baseTicker),
+        provider: sanitizeTextForPostgres(provider),
+        source_id: sanitizeTextForPostgres(sourceId),
         definition_type: "provider_peer_api",
         fetched_at: fetchedAt,
         data_as_of: fetchedAt.slice(0, 10),
         peers_count: peers.length,
         completeness_score: peers.length ? 100 : 0,
-        raw_payload: rawPayload,
+        raw_payload: sanitizeJsonForPostgres(rawPayload),
         updated_at: fetchedAt
       },
       {
@@ -38,10 +38,10 @@ export async function upsertPeerGroup({
 
   const memberRows = peers.map((peerTicker) => ({
     peer_group_id: peerGroup.peer_group_id,
-    base_ticker: baseTicker,
-    peer_ticker: peerTicker,
+    base_ticker: sanitizeTextForPostgres(baseTicker),
+    peer_ticker: sanitizeTextForPostgres(peerTicker),
     role: "peer",
-    source_id: sourceId,
+    source_id: sanitizeTextForPostgres(sourceId),
     fetched_at: fetchedAt
   }));
 
@@ -94,20 +94,22 @@ export async function upsertCongressDisclosures(records) {
   const now = new Date().toISOString();
 
   const rows = records.map((record) => ({
-    chamber: record.chamber || null,
-    member_name: record.member_name || null,
-    ticker: record.ticker || null,
-    asset_description: record.asset_description || null,
-    transaction_type: record.transaction_type || null,
-    amount: record.amount || null,
+    chamber: sanitizeTextForPostgres(record.chamber),
+    member_name: sanitizeTextForPostgres(record.member_name),
+    ticker: sanitizeTextForPostgres(record.ticker),
+    asset_description: sanitizeTextForPostgres(record.asset_description, 1500),
+    transaction_type: sanitizeTextForPostgres(record.transaction_type),
+    amount: sanitizeTextForPostgres(record.amount),
     transaction_date: normalizeDate(record.transaction_date),
     disclosure_date: normalizeDate(record.disclosure_date),
-    reporting_delay_days: record.reporting_delay_days ?? null,
-    owner: record.owner || null,
-    raw_reference_url: record.raw_reference_url || null,
-    source_id: record.source_id || "financial_modeling_prep",
+    reporting_delay_days: normalizeInteger(record.reporting_delay_days),
+    owner: sanitizeTextForPostgres(record.owner),
+    raw_reference_url: sanitizeTextForPostgres(record.raw_reference_url, 2500),
+    source_id: sanitizeTextForPostgres(
+      record.source_id || "financial_modeling_prep"
+    ),
     fetched_at: record.fetched_at || now,
-    raw_payload: record,
+    raw_payload: sanitizeJsonForPostgres(record),
     updated_at: now
   }));
 
@@ -175,4 +177,69 @@ function normalizeDate(value) {
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+function normalizeInteger(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) {
+    return null;
+  }
+
+  return Math.round(numberValue);
+}
+
+function sanitizeTextForPostgres(value, maxLength = 1000) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const sanitized = String(value)
+    .replace(/\u0000/g, "")
+    .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!sanitized) {
+    return null;
+  }
+
+  return sanitized.slice(0, maxLength);
+}
+
+function sanitizeJsonForPostgres(value, depth = 0) {
+  if (depth > 8) {
+    return "[Max depth reached]";
+  }
+
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return sanitizeTextForPostgres(value, 10000);
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeJsonForPostgres(item, depth + 1));
+  }
+
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        sanitizeTextForPostgres(key, 300) || "unknown_key",
+        sanitizeJsonForPostgres(item, depth + 1)
+      ])
+    );
+  }
+
+  return sanitizeTextForPostgres(String(value), 10000);
 }
