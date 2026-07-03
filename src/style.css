@@ -2150,3 +2150,41 @@ p {
     flex-direction: column;
   }
 }
+
+/* =========================================================
+   CONGRESS DISCLOSURES — PROVIDER WARNINGS
+   ========================================================= */
+
+.congress-warning-box {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #713f12;
+}
+
+.congress-warning-box ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.congress-warning-box li {
+  margin: 6px 0;
+}
+
+/* =========================================================
+   CONGRESS DISCLOSURES — PROVIDER UNAVAILABLE
+   ========================================================= */
+
+.congress-provider-unavailable {
+  background:
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.1), transparent 34%),
+    #ffffff;
+}
+
+.congress-provider-unavailable ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.congress-provider-unavailable li {
+  margin: 6px 0;
+}

@@ -31,20 +31,55 @@ export default async function handler(req, res) {
         });
 
     let sourceMode = "supabase-cache";
+    let warnings = [];
+    let availability = {
+      status: records.length ? "available_from_supabase" : "not_checked",
+      reason: null
+    };
 
-    if (!records.length) {
+    if (!records.length || refresh) {
       const result = await fetchFmpCongressTrades({
         symbol,
         chamber,
         limit
       });
 
+      if (!result.ok && result.status === 402) {
+        return res.status(200).json({
+          data: {
+            symbol: symbol || null,
+            chamber,
+            source: "provider-unavailable",
+            records_count: 0,
+            records: [],
+            warnings: result.payload?.failures || [],
+            availability: {
+              status: "provider_plan_required",
+              reason:
+                "FMP ha risposto HTTP 402 sugli endpoint Congress. Il dataset non è disponibile con il piano/API key attuale."
+            }
+          },
+          data_quality: {
+            source_id: "financial_modeling_prep",
+            fetched_at: new Date().toISOString(),
+            data_as_of: null,
+            completeness_score: 0
+          },
+          disclaimer:
+            "Congress disclosures non disponibili tramite FMP con il piano attuale. La sezione resta educativa; fonti ufficiali primarie: House Clerk e Senate Public Disclosure."
+        });
+      }
+
       if (!result.ok) {
         return res.status(result.status).json(result.payload);
       }
 
       const fetchedRecords = result.payload?.data?.records || [];
-      await upsertCongressDisclosures(fetchedRecords);
+      warnings = result.payload?.data?.warnings || [];
+
+      if (fetchedRecords.length) {
+        await upsertCongressDisclosures(fetchedRecords);
+      }
 
       records = await getCongressDisclosuresFromDb({
         symbol,
@@ -52,7 +87,16 @@ export default async function handler(req, res) {
         limit
       });
 
-      sourceMode = "fmp-refresh";
+      sourceMode = result.payload?.data?.partial_success
+        ? "fmp-refresh-partial"
+        : "fmp-refresh";
+
+      availability = {
+        status: records.length ? "available" : "empty_after_refresh",
+        reason: records.length
+          ? null
+          : "Refresh completato ma nessun record disponibile per i filtri selezionati."
+      };
     }
 
     return res.status(200).json({
@@ -61,7 +105,9 @@ export default async function handler(req, res) {
         chamber,
         source: sourceMode,
         records_count: records.length,
-        records
+        records,
+        warnings,
+        availability
       },
       data_quality: {
         source_id: records[0]?.source_id || "financial_modeling_prep",

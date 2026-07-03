@@ -47,13 +47,11 @@ export async function fetchFmpCongressTrades({
 
   try {
     const results = await Promise.all(requests);
-    const failed = results.find((result) => !result.ok);
 
-    if (failed) {
-      return failed;
-    }
+    const successfulResults = results.filter((result) => result.ok);
+    const failedResults = results.filter((result) => !result.ok);
 
-    const trades = results
+    const trades = successfulResults
       .flatMap((result) => result.payload.data.records)
       .sort((a, b) => {
         const dateA = new Date(a.disclosure_date || a.transaction_date || 0);
@@ -63,6 +61,45 @@ export async function fetchFmpCongressTrades({
       })
       .slice(0, limit);
 
+    const allEndpointsFailed = failedResults.length === results.length;
+    const allFailuresArePaymentRequired = failedResults.every((failure) => {
+      return failure.status === 402;
+    });
+
+    if (!trades.length && allEndpointsFailed && allFailuresArePaymentRequired) {
+      return {
+        ok: false,
+        status: 402,
+        payload: {
+          error: "FMP_CONGRESS_PREMIUM_REQUIRED",
+          message:
+            "Gli endpoint FMP Congress Disclosures risultano non disponibili con il piano/API key attuale.",
+          explanation:
+            "FMP ha risposto HTTP 402 su House/Senate trades. La pagina può restare educativa, ma questi dati non possono essere aggiornati via FMP con questa API key.",
+          failures: failedResults.map((failure) => failure.payload),
+          source_id: "financial_modeling_prep",
+          fetched_at: new Date().toISOString()
+        }
+      };
+    }
+
+    if (!trades.length && allEndpointsFailed) {
+      const firstFailure = failedResults[0];
+
+      return {
+        ok: false,
+        status: firstFailure.status || 502,
+        payload: {
+          error: "FMP_CONGRESS_ALL_ENDPOINTS_FAILED",
+          message:
+            "Tutti gli endpoint Congress richiesti hanno restituito errore.",
+          failures: failedResults.map((failure) => failure.payload),
+          source_id: "financial_modeling_prep",
+          fetched_at: new Date().toISOString()
+        }
+      };
+    }
+
     return {
       ok: true,
       status: 200,
@@ -71,7 +108,16 @@ export async function fetchFmpCongressTrades({
           symbol: normalizedSymbol || null,
           chamber,
           records_count: trades.length,
-          records: trades
+          records: trades,
+          partial_success: failedResults.length > 0,
+          warnings: failedResults.map((failure) => ({
+            endpoint: failure.payload?.endpoint || null,
+            chamber: failure.payload?.chamber || null,
+            status: failure.status || null,
+            error: failure.payload?.error || null,
+            message: failure.payload?.message || null,
+            provider_response: failure.payload?.provider_response || null
+          }))
         },
         data_quality: {
           source_id: "financial_modeling_prep",
@@ -115,38 +161,73 @@ async function fetchCongressEndpoint({
 
   url.searchParams.set("apikey", apiKey);
 
-  const response = await fetch(url.toString());
+  let providerPayload = null;
 
-  if (!response.ok) {
+  try {
+    const response = await fetch(url.toString());
+
+    try {
+      providerPayload = await response.json();
+    } catch {
+      providerPayload = null;
+    }
+
+    if (!response.ok) {
+      const isPaymentRequired = response.status === 402;
+
+      return {
+        ok: false,
+        status: response.status,
+        payload: {
+          error: isPaymentRequired
+            ? "FMP_CONGRESS_PREMIUM_REQUIRED"
+            : "FMP_CONGRESS_HTTP_ERROR",
+          endpoint,
+          chamber,
+          message: isPaymentRequired
+            ? `Endpoint FMP ${endpoint} non disponibile con il piano/API key attuale.`
+            : `Errore HTTP da FMP ${endpoint}.`,
+          status: response.status,
+          source_id: sourceId,
+          provider_response: providerPayload,
+          fetched_at: new Date().toISOString()
+        }
+      };
+    }
+
+    const rows = Array.isArray(providerPayload)
+      ? providerPayload
+      : Array.isArray(providerPayload?.data)
+        ? providerPayload.data
+        : [];
+
+    return {
+      ok: true,
+      status: 200,
+      payload: {
+        data: {
+          endpoint,
+          chamber,
+          records: rows.map((row) =>
+            normalizeCongressTrade(row, chamber, sourceId)
+          )
+        }
+      }
+    };
+  } catch (error) {
     return {
       ok: false,
-      status: response.status,
+      status: 500,
       payload: {
-        error: "FMP_CONGRESS_HTTP_ERROR",
-        message: `Errore HTTP da FMP ${endpoint}.`,
-        status: response.status,
+        error: "FMP_CONGRESS_ENDPOINT_FETCH_FAILED",
+        endpoint,
+        chamber,
+        message: error.message,
         source_id: sourceId,
         fetched_at: new Date().toISOString()
       }
     };
   }
-
-  const raw = await response.json();
-  const rows = Array.isArray(raw)
-    ? raw
-    : Array.isArray(raw?.data)
-      ? raw.data
-      : [];
-
-  return {
-    ok: true,
-    status: 200,
-    payload: {
-      data: {
-        records: rows.map((row) => normalizeCongressTrade(row, chamber, sourceId))
-      }
-    }
-  };
 }
 
 function normalizeCongressTrade(row, chamber, sourceId) {

@@ -176,6 +176,23 @@ window.loadRealCongressDisclosures = async function loadRealCongressDisclosures(
     const records = payload?.data?.records || [];
 
     if (!records.length) {
+      const availability = payload?.data?.availability;
+
+      if (availability?.status === "provider_plan_required") {
+        statusEl.innerHTML = `
+          <p>
+            <strong>Dataset Congress non disponibile con il piano FMP attuale.</strong>
+          </p>
+          <p>
+            FMP ha risposto HTTP 402 sugli endpoint House/Senate trades.
+            La sezione resta educativa e mostra i limiti metodologici delle disclosure.
+          </p>
+        `;
+
+        contentEl.innerHTML = renderCongressProviderUnavailable(payload);
+        return;
+      }
+
       statusEl.innerHTML = `
         <p>Nessuna disclosure reale trovata per <strong>${selectedCongressSymbol}</strong>.</p>
       `;
@@ -265,6 +282,8 @@ function renderDisclosureTable(payload) {
         ${cards}
       </div>
 
+      ${renderCongressWarnings(payload)}
+
       <section class="audit-box">
         <p><strong>Fonte API:</strong> ${payload.data_quality?.source_id || "financial_modeling_prep"}</p>
         <p><strong>Data as of:</strong> ${formatValue(payload.data_quality?.data_as_of)}</p>
@@ -341,4 +360,94 @@ function formatValue(value) {
   }
 
   return value;
+}
+
+function renderCongressWarnings(payload) {
+  const warnings = payload?.data?.warnings || [];
+
+  if (!warnings.length) {
+    return "";
+  }
+
+  const items = warnings
+    .map((warning) => {
+      return `
+        <li>
+          <strong>${formatValue(warning.chamber)} / ${formatValue(warning.endpoint)}:</strong>
+          ${formatValue(warning.message)}
+          ${warning.status ? `(HTTP ${warning.status})` : ""}
+        </li>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="audit-box congress-warning-box">
+      <p><strong>Avvisi provider:</strong></p>
+      <ul>
+        ${items}
+      </ul>
+      <p>
+        La pagina mostra eventuali dati disponibili dalle altre camere.
+        Se House fallisce ma Senate funziona, il risultato viene mostrato come parziale.
+      </p>
+    </section>
+  `;
+}
+
+function renderCongressProviderUnavailable(payload) {
+  const warnings = payload?.data?.warnings || [];
+
+  const warningRows = warnings.length
+    ? warnings
+        .map((warning) => {
+          return `
+            <li>
+              ${formatValue(warning.chamber || warning.source_id)}:
+              ${formatValue(warning.message || warning.error)}
+            </li>
+          `;
+        })
+        .join("")
+    : "<li>FMP ha restituito HTTP 402 sugli endpoint richiesti.</li>";
+
+  return `
+    <section class="detail-section congress-provider-unavailable">
+      <div class="real-data-section-header">
+        <div>
+          <h3>Dataset non disponibile nel piano API attuale</h3>
+          <p class="muted-text">
+            Gli endpoint Congress Disclosures di FMP non sono accessibili con la API key attuale.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--warning">
+          HTTP 402
+        </span>
+      </div>
+
+      <section class="audit-box">
+        <p><strong>Dettaglio:</strong></p>
+        <ul>
+          ${warningRows}
+        </ul>
+      </section>
+
+      <section class="note-box">
+        <strong>Interpretazione prodotto:</strong>
+        questo non è un errore della pagina. Significa che il provider esterno non rende
+        disponibili questi dataset con il piano attuale. La sezione resta utile a fini
+        educativi per spiegare limiti, ritardi, importi in range e assenza di inferenze
+        sulle intenzioni dei dichiaranti.
+      </section>
+
+      <section class="description-box">
+        <p>
+          <strong>Possibili evoluzioni:</strong>
+          usare un piano/provider che includa Congress trades oppure implementare ingestion
+          da fonti ufficiali pubbliche, con parser dedicato e normalizzazione su Supabase.
+        </p>
+      </section>
+    </section>
+  `;
 }
