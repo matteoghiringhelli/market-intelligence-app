@@ -2108,3 +2108,45 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   REAL DATA REFRESH ACTIONS — PEER / CONGRESS
+   ========================================================= */
+
+.peer-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.real-data-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.real-data-section-header h3 {
+  margin: 0;
+}
+
+.real-data-section-header p {
+  margin: 8px 0 0;
+}
+
+@media (max-width: 700px) {
+  .peer-actions-row {
+    flex-direction: column;
+  }
+
+  .peer-actions-row .button,
+  .peer-actions-row .secondary-button {
+    width: 100%;
+  }
+
+  .real-data-section-header {
+    flex-direction: column;
+  }
+}

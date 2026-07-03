@@ -2,6 +2,8 @@ import { fetchRealCongressDisclosures } from "../services/congress-disclosures-a
 
 let selectedCongressSymbol = "AAPL";
 let selectedCongressChamber = "both";
+let congressLoading = false;
+let congressLastMode = "cache";
 
 const congressSymbols = ["AAPL", "MSFT", "JPM", "NVDA", "AMZN"];
 
@@ -20,7 +22,7 @@ const mockCongressFallback = [
 ];
 
 export function renderCongressDisclosuresPage() {
-  setTimeout(() => loadRealCongressDisclosures(), 0);
+  setTimeout(() => loadRealCongressDisclosures(false), 0);
 
   const mockCards = mockCongressFallback.map(renderMockDisclosureCard).join("");
 
@@ -30,8 +32,9 @@ export function renderCongressDisclosuresPage() {
         <p class="eyebrow">Public Disclosure Layer</p>
         <h1>Congress Disclosures</h1>
         <p class="subtitle">
-          Disclosure pubbliche reali da fonte esterna, con lettura descrittiva
-          e limiti espliciti su ritardi, importi in range ed entity resolution.
+          Disclosure pubbliche reali da fonte esterna, persistite in Supabase,
+          con lettura descrittiva e limiti espliciti su ritardi, importi in range
+          ed entity resolution.
         </p>
       </div>
     </header>
@@ -41,8 +44,8 @@ export function renderCongressDisclosuresPage() {
         <div>
           <h2>Congress Disclosures reali</h2>
           <p>
-            Dati recuperati da endpoint FMP House/Senate. Le fonti ufficiali restano
-            House Clerk e Senate Public Disclosure per verifica primaria.
+            Apertura normale: lettura da Supabase. Bottone “Aggiorna dati reali”:
+            refresh da FMP e persistenza su Supabase.
           </p>
         </div>
       </div>
@@ -59,6 +62,26 @@ export function renderCongressDisclosuresPage() {
         <div class="symbol-selector">
           ${congressChambers.map(renderChamberButton).join("")}
         </div>
+      </section>
+
+      <section class="peer-actions-row">
+        <button
+          class="button"
+          type="button"
+          onclick="loadRealCongressDisclosures(false)"
+          ${congressLoading ? "disabled" : ""}
+        >
+          Leggi da Supabase
+        </button>
+
+        <button
+          class="secondary-button"
+          type="button"
+          onclick="loadRealCongressDisclosures(true)"
+          ${congressLoading ? "disabled" : ""}
+        >
+          Aggiorna dati reali
+        </button>
       </section>
 
       <div id="congress-disclosures-status" class="description-box">
@@ -112,16 +135,16 @@ function renderChamberButton(chamber) {
 window.selectCongressSymbol = function selectCongressSymbol(symbol) {
   selectedCongressSymbol = symbol;
   updateCongressButtons();
-  loadRealCongressDisclosures();
+  loadRealCongressDisclosures(false);
 };
 
 window.selectCongressChamber = function selectCongressChamber(chamber) {
   selectedCongressChamber = chamber;
   updateCongressButtons();
-  loadRealCongressDisclosures();
+  loadRealCongressDisclosures(false);
 };
 
-async function loadRealCongressDisclosures() {
+window.loadRealCongressDisclosures = async function loadRealCongressDisclosures(refresh = false) {
   const statusEl = document.querySelector("#congress-disclosures-status");
   const contentEl = document.querySelector("#congress-disclosures-real-content");
 
@@ -129,9 +152,13 @@ async function loadRealCongressDisclosures() {
     return;
   }
 
+  congressLoading = true;
+  congressLastMode = refresh ? "refresh" : "cache";
+
   statusEl.innerHTML = `
     <p>
-      Caricamento disclosure per <strong>${selectedCongressSymbol}</strong>
+      ${refresh ? "Aggiornamento da FMP e persistenza Supabase" : "Lettura da Supabase"}
+      per <strong>${selectedCongressSymbol}</strong>
       (${selectedCongressChamber})...
     </p>
   `;
@@ -142,7 +169,8 @@ async function loadRealCongressDisclosures() {
     const payload = await fetchRealCongressDisclosures({
       symbol: selectedCongressSymbol,
       chamber: selectedCongressChamber,
-      limit: 50
+      limit: 50,
+      refresh
     });
 
     const records = payload?.data?.records || [];
@@ -158,6 +186,7 @@ async function loadRealCongressDisclosures() {
       <p>
         Disclosure reali recuperate: <strong>${records.length}</strong>.
         Completezza: <strong>${payload.data_quality?.completeness_score || 0}%</strong>.
+        Fonte lettura: <strong>${payload.data?.source || "n/d"}</strong>.
       </p>
     `;
 
@@ -167,8 +196,10 @@ async function loadRealCongressDisclosures() {
       <p><strong>Errore Congress Disclosures:</strong> ${error.message}</p>
       <p>La pagina resta disponibile con fallback mock.</p>
     `;
+  } finally {
+    congressLoading = false;
   }
-}
+};
 
 function renderDisclosureTable(payload) {
   const records = payload.data.records;
@@ -195,7 +226,19 @@ function renderDisclosureTable(payload) {
 
   return `
     <section class="detail-section">
-      <h3>Disclosure reali</h3>
+      <div class="real-data-section-header">
+        <div>
+          <h3>Disclosure reali</h3>
+          <p class="muted-text">
+            Fonte lettura: ${formatValue(payload.data?.source)}.
+            Chamber: ${formatValue(payload.data?.chamber)}.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          ${congressLastMode === "refresh" ? "FMP refresh" : "Supabase cache"}
+        </span>
+      </div>
 
       <div class="history-table-wrapper history-table-wrapper--desktop">
         <table class="history-table">
