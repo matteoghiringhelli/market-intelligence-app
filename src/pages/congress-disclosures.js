@@ -751,118 +751,6 @@ window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
     return;
   }
 
-  statusEl.innerHTML = `
-    <section class="description-box">
-      <p>
-        Estrazione transazioni dal PDF ufficiale House in corso.
-        Doc ID: <strong>${formatValue(docId)}</strong>.
-      </p>
-    </section>
-  `;
-
-  try {
-    const payload = await parseOfficialHouseFilingPdf({
-      docId,
-      documentUrl,
-      memberName,
-      filingDate,
-      filingYear,
-      persist: true,
-      limit: 50
-    });
-
-    const recordsCount = payload?.data?.records_count || 0;
-    const upserted = payload?.persistence?.upserted || 0;
-    const notes = payload?.data?.parser_notes || [];
-
-    statusEl.innerHTML = `
-      <section class="detail-section official-pdf-parser-result">
-        <div class="real-data-section-header">
-          <div>
-            <p class="eyebrow">PDF Transaction Parser</p>
-            <h3>Estrazione completata</h3>
-            <p class="muted-text">
-              Record estratti: ${recordsCount}. Record persistiti:
-              ${upserted}.
-            </p>
-          </div>
-
-          <span class="quality-badge quality-badge--neutral">
-            PDF parser V1
-          </span>
-        </div>
-
-        <section class="note-box">
-          ${
-            notes.length
-              ? notes.map((note) => `<p>${note}</p>`).join("")
-              : "<p>Nessuna nota parser disponibile.</p>"
-          }
-        </section>
-
-        <section class="audit-box">
-          <p>
-            Le transazioni estratte sono state inserite in
-            <code>congress_disclosures</code> se il parser ha individuato righe compatibili.
-          </p>
-        </section>
-      </section>
-    `;
-  } catch (error) {
-    statusEl.innerHTML = `
-      <section class="audit-box">
-        <p><strong>Errore parser PDF House:</strong> ${error.message}</p>
-        <p>
-          Il PDF potrebbe avere layout non testuale, tabella non standard o richiedere OCR/parser dedicato.
-        </p>
-      </section>
-    `;
-  }
-};
-
-function formatJsString(value) {
-  return String(value || "")
-    .replaceAll("\\", "\\\\")
-    .replaceAll("'", "\\'")
-    .replaceAll("\n", " ")
-    .replaceAll("\r", " ");
-}
-
-if (typeof window !== "undefined" && !window.__officialHousePdfParserBound) {
-  window.__officialHousePdfParserBound = true;
-
-  document.addEventListener("click", (event) => {
-    const button = event.target.closest(".official-pdf-parse-button");
-
-    if (!button) {
-      return;
-    }
-
-    event.preventDefault();
-
-    window.parseOfficialHousePdfFromUi(
-      button.dataset.docId,
-      button.dataset.documentUrl,
-      button.dataset.memberName,
-      button.dataset.filingDate,
-      button.dataset.filingYear
-    );
-  });
-}
-
-window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
-  docId,
-  documentUrl,
-  memberName,
-  filingDate,
-  filingYear
-) {
-  const statusEl = document.querySelector("#official-house-pdf-parser-status");
-
-  if (!statusEl) {
-    return;
-  }
-
   statusEl.scrollIntoView({
     behavior: "smooth",
     block: "center"
@@ -891,9 +779,11 @@ window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
       limit: 50
     });
 
-    const recordsCount = payload?.data?.records_count || 0;
+    const records = payload?.data?.records || [];
+    const recordsCount = payload?.data?.records_count || records.length;
     const upserted = payload?.persistence?.upserted || 0;
     const notes = payload?.data?.parser_notes || [];
+    const officialPdfUrl = payload?.data?.document_url || documentUrl;
 
     statusEl.innerHTML = `
       <section class="detail-section official-pdf-parser-result">
@@ -912,6 +802,18 @@ window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
           </span>
         </div>
 
+        ${
+          officialPdfUrl
+            ? `
+              ${escapeHtmlAttribute(officialPdfUrl)}
+                Apri PDF ufficiale
+              </a>
+            `
+            : ""
+        }
+
+        ${renderParsedPdfTransactions(records)}
+
         <section class="note-box">
           ${
             notes.length
@@ -924,6 +826,10 @@ window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
           <p>
             Le transazioni estratte sono state inserite in
             <code>congress_disclosures</code> se il parser ha individuato righe compatibili.
+          </p>
+          <p>
+            Nota: la sezione provider sopra può non mostrare questi record se il ticker selezionato
+            è diverso dal ticker estratto dal PDF.
           </p>
         </section>
       </section>
@@ -939,7 +845,6 @@ window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
     `;
   }
 };
-
 function escapeHtmlAttribute(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -947,4 +852,74 @@ function escapeHtmlAttribute(value) {
     .replaceAll("'", "&#039;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+function renderParsedPdfTransactions(records) {
+  if (!records.length) {
+    return `
+      <section class="audit-box">
+        <p>
+          <strong>Nessuna transazione visualizzabile.</strong>
+          Il parser ha completato l'esecuzione ma non ha prodotto righe normalizzate
+          sufficienti da mostrare nella UI.
+        </p>
+      </section>
+    `;
+  }
+
+  const cards = records
+    .map((record) => {
+      return `
+        <article class="parsed-pdf-transaction-card">
+          <div class="parsed-pdf-transaction-card__header">
+            <div>
+              <p class="metric-label">Ticker</p>
+              <h3>${formatValue(record.ticker)}</h3>
+            </div>
+
+            <span class="quality-badge quality-badge--neutral">
+              ${formatValue(record.transaction_type)}
+            </span>
+          </div>
+
+          <section class="description-box">
+            <p><strong>Member:</strong> ${formatValue(record.member_name)}</p>
+            <p><strong>Asset:</strong> ${formatValue(record.asset_description)}</p>
+            <p><strong>Amount:</strong> ${formatValue(record.amount)}</p>
+          </section>
+
+          <div class="daily-history-card__ohlc">
+            <div>
+              <p class="metric-label">Transaction date</p>
+              <strong>${formatValue(record.transaction_date)}</strong>
+            </div>
+
+            <div>
+              <p class="metric-label">Disclosure date</p>
+              <strong>${formatValue(record.disclosure_date)}</strong>
+            </div>
+
+            <div>
+              <p class="metric-label">Delay days</p>
+              <strong>${formatValue(record.reporting_delay_days)}</strong>
+            </div>
+          </div>
+
+          <section class="audit-box parsed-pdf-raw-context">
+            <p><strong>Raw context:</strong></p>
+            <p>${formatValue(record.raw_context || record.raw_parser_line)}</p>
+          </section>
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="parsed-pdf-transactions-block">
+      <h4>Transazioni estratte dal PDF</h4>
+      <div class="parsed-pdf-transaction-list">
+        ${cards}
+      </div>
+    </section>
+  `;
 }
