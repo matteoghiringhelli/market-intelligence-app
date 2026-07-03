@@ -1,9 +1,17 @@
 import { fetchRealCongressDisclosures } from "../services/congress-disclosures-api.js";
+import {
+  fetchOfficialHouseFilings,
+  fetchOfficialSenateStatus
+} from "../services/congress-official-filings-api.js";
 
 let selectedCongressSymbol = "AAPL";
 let selectedCongressChamber = "both";
 let congressLoading = false;
 let congressLastMode = "cache";
+
+let selectedOfficialYear = 2026;
+let officialHouseLoading = false;
+let officialHouseLastMode = "cache";
 
 const congressSymbols = ["AAPL", "MSFT", "JPM", "NVDA", "AMZN"];
 
@@ -12,6 +20,8 @@ const congressChambers = [
   { id: "house", label: "House" },
   { id: "senate", label: "Senate" }
 ];
+
+const officialYears = [2026, 2025, 2024];
 
 const mockCongressFallback = [
   {
@@ -23,6 +33,7 @@ const mockCongressFallback = [
 
 export function renderCongressDisclosuresPage() {
   setTimeout(() => loadRealCongressDisclosures(false), 0);
+  setTimeout(() => loadOfficialHouseFilings(false), 0);
 
   const mockCards = mockCongressFallback.map(renderMockDisclosureCard).join("");
 
@@ -32,9 +43,9 @@ export function renderCongressDisclosuresPage() {
         <p class="eyebrow">Public Disclosure Layer</p>
         <h1>Congress Disclosures</h1>
         <p class="subtitle">
-          Disclosure pubbliche reali da fonte esterna, persistite in Supabase,
-          con lettura descrittiva e limiti espliciti su ritardi, importi in range
-          ed entity resolution.
+          Disclosure pubbliche e filing ufficiali. La sezione FMP mostra eventuali dati
+          provider, mentre la sezione Official House Filings usa l'indice ufficiale House
+          persistito in Supabase.
         </p>
       </div>
     </header>
@@ -42,10 +53,10 @@ export function renderCongressDisclosuresPage() {
     <section class="panel">
       <div class="panel-header">
         <div>
-          <h2>Congress Disclosures reali</h2>
+          <h2>Congress Trades Provider</h2>
           <p>
             Apertura normale: lettura da Supabase. Bottone “Aggiorna dati reali”:
-            refresh da FMP e persistenza su Supabase.
+            refresh da provider e persistenza su Supabase, se il dataset è disponibile.
           </p>
         </div>
       </div>
@@ -90,6 +101,8 @@ export function renderCongressDisclosuresPage() {
 
       <div id="congress-disclosures-real-content"></div>
 
+      ${renderOfficialHouseFilingsSection()}
+
       <section class="detail-section">
         <h3>Fallback mock educativo</h3>
         <p class="muted-text">
@@ -100,6 +113,68 @@ export function renderCongressDisclosuresPage() {
           ${mockCards}
         </div>
       </section>
+    </section>
+  `;
+}
+
+function renderOfficialHouseFilingsSection() {
+  return `
+    <section class="detail-section official-house-filings-section">
+      <div class="real-data-section-header">
+        <div>
+          <p class="eyebrow">Official Source Layer</p>
+          <h3>Official House Filings</h3>
+          <p class="muted-text">
+            Indice ufficiale House dei filing finanziari. V1 indicizza i filing PTR e
+            conserva document URL, doc ID, filer, filing date e fonte.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          House official
+        </span>
+      </div>
+
+      <section class="selector-section">
+        <p class="selector-label">Filing year</p>
+        <div class="symbol-selector">
+          ${officialYears.map(renderOfficialYearButton).join("")}
+        </div>
+      </section>
+
+      <section class="peer-actions-row">
+        <button
+          class="button"
+          type="button"
+          onclick="loadOfficialHouseFilings(false)"
+          ${officialHouseLoading ? "disabled" : ""}
+        >
+          Leggi filing ufficiali da Supabase
+        </button>
+
+        <button
+          class="secondary-button"
+          type="button"
+          onclick="loadOfficialHouseFilings(true)"
+          ${officialHouseLoading ? "disabled" : ""}
+        >
+          Aggiorna filing ufficiali House
+        </button>
+
+        <button
+          class="secondary-button"
+          type="button"
+          onclick="loadOfficialSenateStatus()"
+        >
+          Stato fonte Senate
+        </button>
+      </section>
+
+      <div id="official-house-filings-status" class="description-box">
+        Caricamento filing ufficiali House...
+      </div>
+
+      <div id="official-house-filings-content"></div>
     </section>
   `;
 }
@@ -132,6 +207,20 @@ function renderChamberButton(chamber) {
   `;
 }
 
+function renderOfficialYearButton(year) {
+  const activeClass = selectedOfficialYear === year ? "symbol-button--active" : "";
+
+  return `
+    <button
+      class="symbol-button ${activeClass}"
+      type="button"
+      onclick="selectOfficialHouseYear(${year})"
+    >
+      ${year}
+    </button>
+  `;
+}
+
 window.selectCongressSymbol = function selectCongressSymbol(symbol) {
   selectedCongressSymbol = symbol;
   updateCongressButtons();
@@ -142,6 +231,12 @@ window.selectCongressChamber = function selectCongressChamber(chamber) {
   selectedCongressChamber = chamber;
   updateCongressButtons();
   loadRealCongressDisclosures(false);
+};
+
+window.selectOfficialHouseYear = function selectOfficialHouseYear(year) {
+  selectedOfficialYear = Number(year);
+  updateCongressButtons();
+  loadOfficialHouseFilings(false);
 };
 
 window.loadRealCongressDisclosures = async function loadRealCongressDisclosures(refresh = false) {
@@ -157,7 +252,7 @@ window.loadRealCongressDisclosures = async function loadRealCongressDisclosures(
 
   statusEl.innerHTML = `
     <p>
-      ${refresh ? "Aggiornamento da FMP e persistenza Supabase" : "Lettura da Supabase"}
+      ${refresh ? "Aggiornamento provider e persistenza Supabase" : "Lettura da Supabase"}
       per <strong>${selectedCongressSymbol}</strong>
       (${selectedCongressChamber})...
     </p>
@@ -181,11 +276,10 @@ window.loadRealCongressDisclosures = async function loadRealCongressDisclosures(
       if (availability?.status === "provider_plan_required") {
         statusEl.innerHTML = `
           <p>
-            <strong>Dataset Congress non disponibile con il piano FMP attuale.</strong>
+            <strong>Dataset Congress provider non disponibile con il piano API attuale.</strong>
           </p>
           <p>
-            FMP ha risposto HTTP 402 sugli endpoint House/Senate trades.
-            La sezione resta educativa e mostra i limiti metodologici delle disclosure.
+            La sezione Official House Filings sotto resta disponibile usando fonte ufficiale House.
           </p>
         `;
 
@@ -194,14 +288,14 @@ window.loadRealCongressDisclosures = async function loadRealCongressDisclosures(
       }
 
       statusEl.innerHTML = `
-        <p>Nessuna disclosure reale trovata per <strong>${selectedCongressSymbol}</strong>.</p>
+        <p>Nessuna disclosure provider trovata per <strong>${selectedCongressSymbol}</strong>.</p>
       `;
       return;
     }
 
     statusEl.innerHTML = `
       <p>
-        Disclosure reali recuperate: <strong>${records.length}</strong>.
+        Disclosure provider recuperate: <strong>${records.length}</strong>.
         Completezza: <strong>${payload.data_quality?.completeness_score || 0}%</strong>.
         Fonte lettura: <strong>${payload.data?.source || "n/d"}</strong>.
       </p>
@@ -211,10 +305,102 @@ window.loadRealCongressDisclosures = async function loadRealCongressDisclosures(
   } catch (error) {
     statusEl.innerHTML = `
       <p><strong>Errore Congress Disclosures:</strong> ${error.message}</p>
-      <p>La pagina resta disponibile con fallback mock.</p>
+      <p>La pagina resta disponibile con fallback mock e con Official House Filings.</p>
     `;
   } finally {
     congressLoading = false;
+  }
+};
+
+window.loadOfficialHouseFilings = async function loadOfficialHouseFilings(refresh = false) {
+  const statusEl = document.querySelector("#official-house-filings-status");
+  const contentEl = document.querySelector("#official-house-filings-content");
+
+  if (!statusEl || !contentEl) {
+    return;
+  }
+
+  officialHouseLoading = true;
+  officialHouseLastMode = refresh ? "refresh" : "cache";
+
+  statusEl.innerHTML = `
+    <p>
+      ${refresh ? "Aggiornamento da ZIP ufficiale House" : "Lettura da Supabase"}
+      per filing year <strong>${selectedOfficialYear}</strong>...
+    </p>
+  `;
+
+  contentEl.innerHTML = "";
+
+  try {
+    const payload = await fetchOfficialHouseFilings({
+      year: selectedOfficialYear,
+      filingType: "P",
+      limit: 50,
+      refresh
+    });
+
+    const records = payload?.data?.records || [];
+
+    if (!records.length) {
+      statusEl.innerHTML = `
+        <p>Nessun filing ufficiale House trovato per ${selectedOfficialYear}.</p>
+      `;
+      return;
+    }
+
+    statusEl.innerHTML = `
+      <p>
+        Filing ufficiali House caricati: <strong>${records.length}</strong>.
+        Fonte: <strong>${payload.data?.source || "n/d"}</strong>.
+        Completezza: <strong>${payload.data_quality?.completeness_score || 0}%</strong>.
+      </p>
+    `;
+
+    contentEl.innerHTML = renderOfficialHouseFilingsTable(payload);
+  } catch (error) {
+    statusEl.innerHTML = `
+      <p><strong>Errore official House filings:</strong> ${error.message}</p>
+      <p>
+        Se il problema riguarda lo ZIP, verifica che il link ufficiale 2026FD.zip
+        sia raggiungibile o configurato come env var.
+      </p>
+    `;
+  } finally {
+    officialHouseLoading = false;
+  }
+};
+
+window.loadOfficialSenateStatus = async function loadOfficialSenateStatus() {
+  const statusEl = document.querySelector("#official-house-filings-status");
+  const contentEl = document.querySelector("#official-house-filings-content");
+
+  if (!statusEl || !contentEl) {
+    return;
+  }
+
+  statusEl.innerHTML = `<p>Caricamento stato fonte ufficiale Senate...</p>`;
+  contentEl.innerHTML = "";
+
+  try {
+    const payload = await fetchOfficialSenateStatus({
+      year: selectedOfficialYear,
+      filingType: "P",
+      limit: 50
+    });
+
+    statusEl.innerHTML = `
+      <p>
+        Stato fonte Senate recuperato.
+        Parser status: <strong>${payload.data?.parser_status || "n/d"}</strong>.
+      </p>
+    `;
+
+    contentEl.innerHTML = renderOfficialSenateStatus(payload);
+  } catch (error) {
+    statusEl.innerHTML = `
+      <p><strong>Errore stato Senate:</strong> ${error.message}</p>
+    `;
   }
 };
 
@@ -245,7 +431,7 @@ function renderDisclosureTable(payload) {
     <section class="detail-section">
       <div class="real-data-section-header">
         <div>
-          <h3>Disclosure reali</h3>
+          <h3>Provider disclosures</h3>
           <p class="muted-text">
             Fonte lettura: ${formatValue(payload.data?.source)}.
             Chamber: ${formatValue(payload.data?.chamber)}.
@@ -253,7 +439,7 @@ function renderDisclosureTable(payload) {
         </div>
 
         <span class="quality-badge quality-badge--neutral">
-          ${congressLastMode === "refresh" ? "FMP refresh" : "Supabase cache"}
+          ${congressLastMode === "refresh" ? "Provider refresh" : "Supabase cache"}
         </span>
       </div>
 
@@ -282,12 +468,185 @@ function renderDisclosureTable(payload) {
         ${cards}
       </div>
 
-      ${renderCongressWarnings(payload)}
-
       <section class="audit-box">
         <p><strong>Fonte API:</strong> ${payload.data_quality?.source_id || "financial_modeling_prep"}</p>
         <p><strong>Data as of:</strong> ${formatValue(payload.data_quality?.data_as_of)}</p>
         <p><strong>Disclaimer:</strong> ${payload.disclaimer}</p>
+      </section>
+    </section>
+  `;
+}
+
+function renderOfficialHouseFilingsTable(payload) {
+  const records = payload.data.records;
+
+  const rows = records
+    .map((record) => {
+      return `
+        <tr>
+          <td>${formatValue(record.filing_date)}</td>
+          <td>${formatValue(record.doc_id)}</td>
+          <td>${formatValue(record.filer_last_name)}</td>
+          <td>${formatValue(record.filer_first_name)}</td>
+          <td>${formatValue(record.filing_type_label)}</td>
+          <td>
+            ${
+              record.document_url
+                ? `${record.document_url}Apri PDF</a>`
+                : "n/d"
+            }
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  const cards = records.map(renderOfficialHouseFilingCard).join("");
+
+  return `
+    <section class="official-filings-result">
+      <div class="real-data-section-header">
+        <div>
+          <h3>Filing ufficiali House</h3>
+          <p class="muted-text">
+            Fonte lettura: ${formatValue(payload.data?.source)}.
+            Modalità: ${officialHouseLastMode === "refresh" ? "ZIP ufficiale refresh" : "Supabase cache"}.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          ${payload.data?.records_count || 0} filing
+        </span>
+      </div>
+
+      <div class="history-table-wrapper history-table-wrapper--desktop">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Filing date</th>
+              <th>Doc ID</th>
+              <th>Last name</th>
+              <th>First name</th>
+              <th>Type</th>
+              <th>Document</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="daily-history-card-list">
+        ${cards}
+      </div>
+
+      <section class="audit-box">
+        <p><strong>Fonte:</strong> ${formatValue(payload.data_quality?.source_id)}</p>
+        <p><strong>Data as of:</strong> ${formatValue(payload.data_quality?.data_as_of)}</p>
+        <p><strong>Disclaimer:</strong> ${payload.disclaimer}</p>
+      </section>
+    </section>
+  `;
+}
+
+function renderOfficialHouseFilingCard(record) {
+  return `
+    <article class="daily-history-card">
+      <div class="daily-history-card__header">
+        <div>
+          <p class="metric-label">Doc ID</p>
+          <h3>${formatValue(record.doc_id)}</h3>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          ${formatValue(record.filing_type)}
+        </span>
+      </div>
+
+      <section class="description-box">
+        <p><strong>Filer:</strong> ${formatValue(record.filer_first_name)} ${formatValue(record.filer_last_name)}</p>
+        <p><strong>Filing date:</strong> ${formatValue(record.filing_date)}</p>
+        <p><strong>Type:</strong> ${formatValue(record.filing_type_label)}</p>
+      </section>
+
+      ${
+        record.document_url
+          ? `
+            ${record.document_url}
+              Apri documento ufficiale
+            </a>
+          `
+          : ""
+      }
+    </article>
+  `;
+}
+
+function renderOfficialSenateStatus(payload) {
+  return `
+    <section class="detail-section">
+      <div class="real-data-section-header">
+        <div>
+          <h3>Senate official status</h3>
+          <p class="muted-text">
+            Fonte ufficiale Senate registrata, parser automatico non implementato in V1.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--warning">
+          ${formatValue(payload.data?.parser_status)}
+        </span>
+      </div>
+
+      <section class="note-box">
+        ${payload.disclaimer}
+      </section>
+    </section>
+  `;
+}
+
+function renderCongressProviderUnavailable(payload) {
+  const warnings = payload?.data?.warnings || [];
+
+  const warningRows = warnings.length
+    ? warnings
+        .map((warning) => {
+          return `
+            <li>
+              ${formatValue(warning.chamber || warning.source_id)}:
+              ${formatValue(warning.message || warning.error)}
+            </li>
+          `;
+        })
+        .join("")
+    : "<li>Provider ha restituito dataset non disponibile.</li>";
+
+  return `
+    <section class="detail-section congress-provider-unavailable">
+      <div class="real-data-section-header">
+        <div>
+          <h3>Dataset provider non disponibile</h3>
+          <p class="muted-text">
+            Il provider non rende disponibili questi dati con il piano/API key attuale.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--warning">
+          Provider unavailable
+        </span>
+      </div>
+
+      <section class="audit-box">
+        <p><strong>Dettaglio:</strong></p>
+        <ul>
+          ${warningRows}
+        </ul>
+      </section>
+
+      <section class="note-box">
+        La sezione Official House Filings usa invece fonte ufficiale House e resta
+        disponibile per indicizzare i filing pubblici.
       </section>
     </section>
   `;
@@ -346,10 +705,13 @@ function updateCongressButtons() {
   document.querySelectorAll(".symbol-button").forEach((button) => {
     const value = button.textContent.trim();
     const chamber = congressChambers.find((item) => item.label === value);
+    const year = Number(value);
 
     button.classList.toggle(
       "symbol-button--active",
-      value === selectedCongressSymbol || chamber?.id === selectedCongressChamber
+      value === selectedCongressSymbol ||
+        chamber?.id === selectedCongressChamber ||
+        year === selectedOfficialYear
     );
   });
 }
@@ -360,94 +722,4 @@ function formatValue(value) {
   }
 
   return value;
-}
-
-function renderCongressWarnings(payload) {
-  const warnings = payload?.data?.warnings || [];
-
-  if (!warnings.length) {
-    return "";
-  }
-
-  const items = warnings
-    .map((warning) => {
-      return `
-        <li>
-          <strong>${formatValue(warning.chamber)} / ${formatValue(warning.endpoint)}:</strong>
-          ${formatValue(warning.message)}
-          ${warning.status ? `(HTTP ${warning.status})` : ""}
-        </li>
-      `;
-    })
-    .join("");
-
-  return `
-    <section class="audit-box congress-warning-box">
-      <p><strong>Avvisi provider:</strong></p>
-      <ul>
-        ${items}
-      </ul>
-      <p>
-        La pagina mostra eventuali dati disponibili dalle altre camere.
-        Se House fallisce ma Senate funziona, il risultato viene mostrato come parziale.
-      </p>
-    </section>
-  `;
-}
-
-function renderCongressProviderUnavailable(payload) {
-  const warnings = payload?.data?.warnings || [];
-
-  const warningRows = warnings.length
-    ? warnings
-        .map((warning) => {
-          return `
-            <li>
-              ${formatValue(warning.chamber || warning.source_id)}:
-              ${formatValue(warning.message || warning.error)}
-            </li>
-          `;
-        })
-        .join("")
-    : "<li>FMP ha restituito HTTP 402 sugli endpoint richiesti.</li>";
-
-  return `
-    <section class="detail-section congress-provider-unavailable">
-      <div class="real-data-section-header">
-        <div>
-          <h3>Dataset non disponibile nel piano API attuale</h3>
-          <p class="muted-text">
-            Gli endpoint Congress Disclosures di FMP non sono accessibili con la API key attuale.
-          </p>
-        </div>
-
-        <span class="quality-badge quality-badge--warning">
-          HTTP 402
-        </span>
-      </div>
-
-      <section class="audit-box">
-        <p><strong>Dettaglio:</strong></p>
-        <ul>
-          ${warningRows}
-        </ul>
-      </section>
-
-      <section class="note-box">
-        <strong>Interpretazione prodotto:</strong>
-        questo non è un errore della pagina. Significa che il provider esterno non rende
-        disponibili questi dataset con il piano attuale. La sezione resta utile a fini
-        educativi per spiegare limiti, ritardi, importi in range e assenza di inferenze
-        sulle intenzioni dei dichiaranti.
-      </section>
-
-      <section class="description-box">
-        <p>
-          <strong>Possibili evoluzioni:</strong>
-          usare un piano/provider che includa Congress trades oppure implementare ingestion
-          da fonti ufficiali pubbliche, con parser dedicato e normalizzazione su Supabase.
-        </p>
-      </section>
-    </section>
-  `;
 }

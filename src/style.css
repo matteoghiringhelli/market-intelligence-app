@@ -2188,3 +2188,32 @@ p {
 .congress-provider-unavailable li {
   margin: 6px 0;
 }
+
+/* =========================================================
+   CONGRESS DISCLOSURES — OFFICIAL HOUSE FILINGS
+   ========================================================= */
+
+.official-house-filings-section {
+  margin-top: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.08), transparent 34%),
+    #ffffff;
+}
+
+.official-filings-result {
+  margin-top: 18px;
+}
+
+.official-filing-link {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 12px;
+  text-decoration: none;
+}
+
+@media (max-width: 700px) {
+  .official-filing-link {
+    width: 100%;
+  }
+}
