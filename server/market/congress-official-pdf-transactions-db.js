@@ -1,7 +1,8 @@
 import { parseOfficialHousePtrPdf } from "../providers/official-house-pdf-transactions.js";
 import {
   upsertCongressDisclosures,
-  getCongressDisclosuresFromDb
+  getCongressDisclosuresFromDb,
+  getOfficialHousePdfTransactionsFromDb
 } from "../lib/peer-congress-repository.js";
 
 export default async function handler(req, res) {
@@ -19,9 +20,33 @@ export default async function handler(req, res) {
     ? Number(req.query.filingYear)
     : inferYearFromDate(filingDate);
   const persist = String(req.query.persist || "true") === "true";
+  const mode = String(req.query.mode || "parse").trim().toLowerCase();
   const limit = parseLimit(req.query.limit);
 
   try {
+    if (mode === "cache") {
+      const cachedPdfRecords = await getOfficialHousePdfTransactionsFromDb({
+        docId,
+        limit
+      });
+
+      return res.status(200).json({
+        data: {
+          mode: "cache",
+          doc_id: docId,
+          records_count: cachedPdfRecords.length,
+          records: cachedPdfRecords
+        },
+        data_quality: {
+          source_id: "house_official_ptr_pdf",
+          fetched_at: new Date().toISOString(),
+          completeness_score: calculateCompleteness(cachedPdfRecords)
+        },
+        disclaimer:
+          "Transazioni lette da congress_disclosures filtrando source_id=house_official_ptr_pdf. Lettura descrittiva, nessuna inferenza su intenzioni o convenienza operativa."
+      });
+    }
+
     const result = await parseOfficialHousePtrPdf({
       documentUrl,
       docId,
@@ -43,11 +68,17 @@ export default async function handler(req, res) {
 
     if (persist && records.length) {
       const upsertResult = await upsertCongressDisclosures(records);
+
       persistence = {
         enabled: true,
         upserted: upsertResult.upserted
       };
     }
+
+    const cachedPdfRecords = await getOfficialHousePdfTransactionsFromDb({
+      docId,
+      limit
+    });
 
     const cachedRecords = await getCongressDisclosuresFromDb({
       symbol: "",
@@ -58,6 +89,10 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ...result.payload,
       persistence,
+      official_pdf_cache: {
+        records_count: cachedPdfRecords.length,
+        records: cachedPdfRecords
+      },
       supabase_cache_preview: {
         records_count: cachedRecords.length,
         records: cachedRecords.slice(0, Math.min(limit, 20))
@@ -82,7 +117,6 @@ function parseLimit(limitQuery) {
   return Math.min(parsed, 100);
 }
 
-
 function inferYearFromDate(value) {
   if (!value) {
     return null;
@@ -95,4 +129,21 @@ function inferYearFromDate(value) {
   }
 
   return date.getUTCFullYear();
+}
+
+function calculateCompleteness(records) {
+  if (!records.length) {
+    return 0;
+  }
+
+  const completeRows = records.filter((record) => {
+    return (
+      record.member_name &&
+      record.asset_description &&
+      record.transaction_type &&
+      record.amount
+    );
+  });
+
+  return Math.round((completeRows.length / records.length) * 100);
 }

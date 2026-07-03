@@ -243,3 +243,33 @@ function sanitizeJsonForPostgres(value, depth = 0) {
 
   return sanitizeTextForPostgres(String(value), 10000);
 }
+
+export async function getOfficialHousePdfTransactionsFromDb({
+  docId = null,
+  limit = 50
+} = {}) {
+  const supabase = getSupabaseAdminClient();
+
+  let query = supabase
+    .from("congress_disclosures")
+    .select(
+      "chamber,member_name,ticker,asset_description,transaction_type,amount,transaction_date,disclosure_date,reporting_delay_days,owner,raw_reference_url,source_id,fetched_at"
+    )
+    .eq("source_id", "house_official_ptr_pdf")
+    .order("fetched_at", {
+      ascending: false
+    })
+    .limit(limit);
+
+  if (docId) {
+    query = query.ilike("raw_reference_url", `%/${docId}.pdf%`);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(`getOfficialHousePdfTransactionsFromDb failed: ${error.message}`);
+  }
+
+  return data || [];
+}

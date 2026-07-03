@@ -2,7 +2,8 @@ import { fetchRealCongressDisclosures } from "../services/congress-disclosures-a
 import {
   fetchOfficialHouseFilings,
   fetchOfficialSenateStatus,
-  parseOfficialHouseFilingPdf
+  parseOfficialHouseFilingPdf,
+  fetchOfficialHousePdfTransactionsFromDb
 } from "../services/congress-official-filings-api.js";
 
 let selectedCongressSymbol = "AAPL";
@@ -176,6 +177,33 @@ function renderOfficialHouseFilingsSection() {
       </div>
 
       <div id="official-house-pdf-parser-status"></div>
+
+      <section class="official-pdf-cache-panel">
+        <div class="real-data-section-header">
+          <div>
+            <p class="eyebrow">Official PDF Extracted Transactions</p>
+            <h3>Transazioni PDF salvate in Supabase</h3>
+            <p class="muted-text">
+              Lettura diretta da congress_disclosures con source_id=house_official_ptr_pdf,
+              indipendente dal ticker selezionato nella sezione provider.
+            </p>
+          </div>
+
+          <button
+            class="secondary-button"
+            type="button"
+            onclick="loadOfficialHousePdfTransactionsFromDb()"
+          >
+            Mostra transazioni estratte
+          </button>
+        </div>
+
+        <div id="official-house-pdf-cache-status" class="description-box">
+          Transazioni PDF ufficiali non ancora caricate in questa vista.
+        </div>
+
+        <div id="official-house-pdf-cache-content"></div>
+      </section>
 
       <div id="official-house-filings-content"></div>
     </section>
@@ -834,6 +862,7 @@ window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
         </section>
       </section>
     `;
+    await loadOfficialHousePdfTransactionsFromDb(docId);
   } catch (error) {
     statusEl.innerHTML = `
       <section class="audit-box">
@@ -917,6 +946,116 @@ function renderParsedPdfTransactions(records) {
   return `
     <section class="parsed-pdf-transactions-block">
       <h4>Transazioni estratte dal PDF</h4>
+      <div class="parsed-pdf-transaction-list">
+        ${cards}
+      </div>
+    </section>
+  `;
+}
+
+window.loadOfficialHousePdfTransactionsFromDb = async function loadOfficialHousePdfTransactionsFromDb(
+  docId = ""
+) {
+  const statusEl = document.querySelector("#official-house-pdf-cache-status");
+  const contentEl = document.querySelector("#official-house-pdf-cache-content");
+
+  if (!statusEl || !contentEl) {
+    return;
+  }
+
+  statusEl.innerHTML = `
+    <p>
+      Lettura transazioni PDF ufficiali da Supabase
+      ${docId ? `per Doc ID <strong>${formatValue(docId)}</strong>` : ""}...
+    </p>
+  `;
+
+  contentEl.innerHTML = "";
+
+  try {
+    const payload = await fetchOfficialHousePdfTransactionsFromDb({
+      docId,
+      limit: 50
+    });
+
+    const records = payload?.data?.records || [];
+
+    if (!records.length) {
+      statusEl.innerHTML = `
+        <p>
+          Nessuna transazione PDF ufficiale salvata in Supabase
+          ${docId ? `per Doc ID <strong>${formatValue(docId)}</strong>` : ""}.
+        </p>
+      `;
+      return;
+    }
+
+    statusEl.innerHTML = `
+      <p>
+        Transazioni PDF ufficiali trovate: <strong>${records.length}</strong>.
+        Fonte: <strong>house_official_ptr_pdf</strong>.
+      </p>
+    `;
+
+    contentEl.innerHTML = renderOfficialPdfCachedTransactions(records);
+  } catch (error) {
+    statusEl.innerHTML = `
+      <p><strong>Errore lettura transazioni PDF ufficiali:</strong> ${error.message}</p>
+    `;
+  }
+};
+
+function renderOfficialPdfCachedTransactions(records) {
+  const cards = records
+    .map((record) => {
+      return `
+        <article class="parsed-pdf-transaction-card">
+          <div class="parsed-pdf-transaction-card__header">
+            <div>
+              <p class="metric-label">Ticker</p>
+              <h3>${formatValue(record.ticker)}</h3>
+            </div>
+
+            <span class="quality-badge quality-badge--neutral">
+              ${formatValue(record.transaction_type)}
+            </span>
+          </div>
+
+          <section class="description-box">
+            <p><strong>Member:</strong> ${formatValue(record.member_name)}</p>
+            <p><strong>Asset:</strong> ${formatValue(record.asset_description)}</p>
+            <p><strong>Amount:</strong> ${formatValue(record.amount)}</p>
+          </section>
+
+          <div class="daily-history-card__ohlc">
+            <div>
+              <p class="metric-label">Transaction date</p>
+              <strong>${formatValue(record.transaction_date)}</strong>
+            </div>
+
+            <div>
+              <p class="metric-label">Disclosure date</p>
+              <strong>${formatValue(record.disclosure_date)}</strong>
+            </div>
+
+            <div>
+              <p class="metric-label">Delay days</p>
+              <strong>${formatValue(record.reporting_delay_days)}</strong>
+            </div>
+          </div>
+
+          <section class="audit-box parsed-pdf-raw-context">
+            <p><strong>Fonte:</strong> ${formatValue(record.source_id)}</p>
+            <p><strong>PDF:</strong> ${formatValue(record.raw_reference_url)}</p>
+          </section>
+        </article>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="parsed-pdf-transactions-block">
+      <h4>Transazioni PDF ufficiali salvate</h4>
       <div class="parsed-pdf-transaction-list">
         ${cards}
       </div>

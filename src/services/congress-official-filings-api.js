@@ -127,3 +127,33 @@ export async function parseOfficialHouseFilingPdf({
 
   return response.json();
 }
+
+export async function fetchOfficialHousePdfTransactionsFromDb({
+  docId = "",
+  limit = 50
+} = {}) {
+  const params = new URLSearchParams({
+    mode: "cache",
+    limit: String(limit)
+  });
+
+  if (docId) {
+    params.set("docId", docId);
+  }
+
+  const response = await fetch(
+    `/api/market/congress-official-pdf-transactions-db?${params.toString()}`
+  );
+
+  if (!response.ok) {
+    const errorPayload = await safeReadJson(response);
+
+    throw new Error(
+      errorPayload?.message ||
+        errorPayload?.error ||
+        `Errore lettura transazioni PDF ufficiali. Status: ${response.status}`
+    );
+  }
+
+  return response.json();
+}
