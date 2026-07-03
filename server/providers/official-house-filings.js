@@ -21,7 +21,8 @@ export async function fetchOfficialHouseFilingIndex({
         status: indexPageResponse.status,
         payload: {
           error: "HOUSE_OFFICIAL_INDEX_PAGE_HTTP_ERROR",
-          message: "Errore HTTP durante il recupero della pagina House Financial Disclosure.",
+          message:
+            "Errore HTTP durante il recupero della pagina House Financial Disclosure.",
           status: indexPageResponse.status,
           source_id: "house_official_financial_disclosure",
           fetched_at: fetchedAt
@@ -79,7 +80,8 @@ export async function fetchOfficialHouseFilingIndex({
         status: 422,
         payload: {
           error: "HOUSE_OFFICIAL_XML_NOT_FOUND",
-          message: "Lo ZIP ufficiale House non contiene un file XML individuabile.",
+          message:
+            "Lo ZIP ufficiale House non contiene un file XML individuabile.",
           source_id: "house_official_financial_disclosure",
           source_url: zipUrl,
           filing_year: year,
@@ -89,6 +91,7 @@ export async function fetchOfficialHouseFilingIndex({
     }
 
     const xmlText = await zip.file(xmlFileName).async("text");
+
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: "",
@@ -97,6 +100,7 @@ export async function fetchOfficialHouseFilingIndex({
 
     const parsedXml = parser.parse(xmlText);
     const rawItems = collectLikelyRows(parsedXml);
+
     const filings = rawItems
       .map((item) =>
         normalizeHouseFiling({
@@ -149,28 +153,50 @@ export async function fetchOfficialHouseFilingIndex({
 }
 
 function discoverHouseZipUrl(html, year) {
-  const hrefs = Array.from(html.matchAll(/href=["']([^"']+)["']/gi)).map((match) => {
-    return match[1];
-  });
+  const hrefRegex = new RegExp("href=[^\"']+[\"']", "gi");
+  const hrefs = [];
+  let match = hrefRegex.exec(html);
+
+  while (match) {
+    if (match[1]) {
+      hrefs.push(match[1]);
+    }
+
+    match = hrefRegex.exec(html);
+  }
 
   const zipHref = hrefs.find((href) => {
-    const normalizedHref = href.toLowerCase();
-    return normalizedHref.includes(String(year)) && normalizedHref.includes(".zip");
+    const normalizedHref = String(href).toLowerCase();
+
+    return (
+      normalizedHref.includes(String(year)) &&
+      normalizedHref.includes(".zip")
+    );
   });
 
   if (!zipHref) {
     return null;
   }
 
-  if (zipHref.startsWith("http")) {
-    return zipHref;
+  return normalizeHouseUrl(zipHref);
+}
+
+function normalizeHouseUrl(value) {
+  const rawValue = String(value || "").trim();
+
+  if (!rawValue) {
+    return null;
   }
 
-  if (zipHref.startsWith("/")) {
-    return `${HOUSE_BASE_URL}${zipHref}`;
+  if (rawValue.startsWith("http")) {
+    return rawValue;
   }
 
-  return `${HOUSE_BASE_URL}/${zipHref}`;
+  if (rawValue.startsWith("/")) {
+    return `${HOUSE_BASE_URL}${rawValue}`;
+  }
+
+  return `${HOUSE_BASE_URL}/${rawValue}`;
 }
 
 function collectLikelyRows(value) {
@@ -189,15 +215,20 @@ function collectLikelyRows(value) {
     const keys = Object.keys(node);
     const lowerKeys = keys.map((key) => key.toLowerCase());
 
-    const looksLikeDisclosureRow =
-      lowerKeys.some((key) => key.includes("doc")) &&
-      (
-        lowerKeys.some((key) => key.includes("last")) ||
-        lowerKeys.some((key) => key.includes("filing")) ||
-        lowerKeys.some((key) => key.includes("type"))
-      );
+    const hasDocumentKey = lowerKeys.some((key) => {
+      return key.includes("doc") || key.includes("document");
+    });
 
-    if (looksLikeDisclosureRow) {
+    const hasFilerOrFilingKey = lowerKeys.some((key) => {
+      return (
+        key.includes("last") ||
+        key.includes("first") ||
+        key.includes("filing") ||
+        key.includes("type")
+      );
+    });
+
+    if (hasDocumentKey && hasFilerOrFilingKey) {
       rows.push(node);
     }
 
@@ -238,7 +269,7 @@ function normalizeHouseFiling({
   return {
     chamber: "House",
     filing_year: Number(year),
-    filing_type: filingType || null,
+    filing_type: filingType ? String(filingType).trim().toUpperCase() : null,
     filing_type_label: mapHouseFilingType(filingType),
     doc_id: docId ? String(docId) : null,
     filer_prefix: pickValue(item, ["Prefix", "prefix"]) || null,
@@ -258,7 +289,11 @@ function normalizeHouseFiling({
 
 function pickValue(object, candidates) {
   for (const candidate of candidates) {
-    if (object[candidate] !== undefined && object[candidate] !== null && object[candidate] !== "") {
+    if (
+      object[candidate] !== undefined &&
+      object[candidate] !== null &&
+      object[candidate] !== ""
+    ) {
       return object[candidate];
     }
   }
@@ -285,19 +320,11 @@ function pickValue(object, candidates) {
 
 function normalizeDocumentUrl(rawDocumentUrl, docId) {
   if (rawDocumentUrl) {
-    if (String(rawDocumentUrl).startsWith("http")) {
-      return rawDocumentUrl;
-    }
-
-    if (String(rawDocumentUrl).startsWith("/")) {
-      return `${HOUSE_BASE_URL}${rawDocumentUrl}`;
-    }
-
-    return `${HOUSE_BASE_URL}/${rawDocumentUrl}`;
+    return normalizeHouseUrl(rawDocumentUrl);
   }
 
   if (docId) {
-    return SE_BASE_URL}/public_disc/ptr-pdfs/${docId}.pdf`;
+    return `${HOUSE_BASE_URL}/public_disc/ptr-pdfs/${docId}.pdf`;
   }
 
   return null;
