@@ -17,6 +17,8 @@ const routeLoaders = {
 
   "market/congress-official-filings-db": () =>
     import("../server/market/congress-official-filings-db.js"),
+  "market/congress-official-pdf-transactions-db": () =>
+    import("../server/market/congress-official-pdf-transactions-db.js"),
 
   "jobs/daily-history-update": () =>
     import("../server/jobs/daily-history-update.js"),

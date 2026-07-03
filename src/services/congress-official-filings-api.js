@@ -76,3 +76,49 @@ async function safeReadJson(response) {
     return null;
   }
 }
+
+export async function parseOfficialHouseFilingPdf({
+  docId,
+  documentUrl,
+  memberName = "",
+  filingDate = "",
+  persist = true,
+  limit = 50
+} = {}) {
+  const params = new URLSearchParams({
+    persist: String(persist),
+    limit: String(limit)
+  });
+
+  if (docId) {
+    params.set("docId", docId);
+  }
+
+  if (documentUrl) {
+    params.set("documentUrl", documentUrl);
+  }
+
+  if (memberName) {
+    params.set("memberName", memberName);
+  }
+
+  if (filingDate) {
+    params.set("filingDate", filingDate);
+  }
+
+  const response = await fetch(
+    `/api/market/congress-official-pdf-transactions-db?${params.toString()}`
+  );
+
+  if (!response.ok) {
+    const errorPayload = await safeReadJson(response);
+
+    throw new Error(
+      errorPayload?.message ||
+        errorPayload?.error ||
+        `Errore parser PDF House. Status: ${response.status}`
+    );
+  }
+
+  return response.json();
+}

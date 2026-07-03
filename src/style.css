@@ -2217,3 +2217,19 @@ p {
     width: 100%;
   }
 }
+
+/* =========================================================
+   CONGRESS DISCLOSURES — OFFICIAL PDF PARSER
+   ========================================================= */
+
+.official-pdf-parse-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.official-pdf-parser-result {
+  margin-top: 18px;
+  background:
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 34%),
+    #ffffff;
+}

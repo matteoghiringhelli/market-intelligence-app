@@ -1,7 +1,8 @@
 import { fetchRealCongressDisclosures } from "../services/congress-disclosures-api.js";
 import {
   fetchOfficialHouseFilings,
-  fetchOfficialSenateStatus
+  fetchOfficialSenateStatus,
+  parseOfficialHouseFilingPdf
 } from "../services/congress-official-filings-api.js";
 
 let selectedCongressSymbol = "AAPL";
@@ -175,6 +176,8 @@ function renderOfficialHouseFilingsSection() {
       </div>
 
       <div id="official-house-filings-content"></div>
+
+      <div id="official-house-pdf-parser-status"></div>
     </section>
   `;
 }
@@ -577,6 +580,14 @@ function renderOfficialHouseFilingCard(record) {
           `
           : ""
       }
+
+      <button
+        class="secondary-button official-pdf-parse-button"
+        type="button"
+        onclick="parseOfficialHousePdfFromUi('${formatJsString(record.doc_id)}', '${formatJsString(record.document_url)}', '${formatJsString(`${record.filer_first_name || ""} ${record.filer_last_name || ""}`.trim())}', '${formatJsString(record.filing_date)}')"
+      >
+        Estrai transazioni PDF
+      </button>
     </article>
   `;
 }
@@ -719,4 +730,92 @@ function formatValue(value) {
   }
 
   return value;
+}
+
+window.parseOfficialHousePdfFromUi = async function parseOfficialHousePdfFromUi(
+  docId,
+  documentUrl,
+  memberName,
+  filingDate
+) {
+  const statusEl = document.querySelector("#official-house-pdf-parser-status");
+
+  if (!statusEl) {
+    return;
+  }
+
+  statusEl.innerHTML = `
+    <section class="description-box">
+      <p>
+        Estrazione transazioni dal PDF ufficiale House in corso.
+        Doc ID: <strong>${formatValue(docId)}</strong>.
+      </p>
+    </section>
+  `;
+
+  try {
+    const payload = await parseOfficialHouseFilingPdf({
+      docId,
+      documentUrl,
+      memberName,
+      filingDate,
+      persist: true,
+      limit: 50
+    });
+
+    const recordsCount = payload?.data?.records_count || 0;
+    const upserted = payload?.persistence?.upserted || 0;
+    const notes = payload?.data?.parser_notes || [];
+
+    statusEl.innerHTML = `
+      <section class="detail-section official-pdf-parser-result">
+        <div class="real-data-section-header">
+          <div>
+            <p class="eyebrow">PDF Transaction Parser</p>
+            <h3>Estrazione completata</h3>
+            <p class="muted-text">
+              Record estratti: ${recordsCount}. Record persistiti:
+              ${upserted}.
+            </p>
+          </div>
+
+          <span class="quality-badge quality-badge--neutral">
+            PDF parser V1
+          </span>
+        </div>
+
+        <section class="note-box">
+          ${
+            notes.length
+              ? notes.map((note) => `<p>${note}</p>`).join("")
+              : "<p>Nessuna nota parser disponibile.</p>"
+          }
+        </section>
+
+        <section class="audit-box">
+          <p>
+            Le transazioni estratte sono state inserite in
+            <code>congress_disclosures</code> se il parser ha individuato righe compatibili.
+          </p>
+        </section>
+      </section>
+    `;
+  } catch (error) {
+    statusEl.innerHTML = `
+      <section class="audit-box">
+        <p><strong>Errore parser PDF House:</strong> ${error.message}</p>
+        <p>
+          Il PDF potrebbe avere layout non testuale, tabella non standard o richiedere OCR/parser dedicato.
+        </p>
+      </section>
+    `;
+  }
+};
+
+function formatJsString(value) {
+  return String(value || "")
+    .replaceAll("\\", "\\\\")
+    .replaceAll("'", "\\'")
+    .replaceAll("\n", " ")
+    .replaceAll("\r", " ");
 }
