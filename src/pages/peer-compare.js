@@ -1,6 +1,8 @@
 import { fetchRealPeerComparison } from "../services/peer-compare-api.js";
 
 let selectedPeerSymbol = "AAPL";
+let peerCompareLoading = false;
+let peerCompareLastMode = "cache";
 
 const availablePeerSymbols = ["AAPL", "MSFT", "JPM", "NVDA", "AMZN"];
 
@@ -18,7 +20,7 @@ const mockPeerFallback = [
 ];
 
 export function renderPeerComparePage() {
-  setTimeout(() => loadRealPeerCompare(selectedPeerSymbol), 0);
+  setTimeout(() => loadRealPeerCompare(selectedPeerSymbol, false), 0);
 
   const mockCards = mockPeerFallback.map(renderMockPeerCard).join("");
 
@@ -29,7 +31,7 @@ export function renderPeerComparePage() {
         <h1>Peer Compare</h1>
         <p class="subtitle">
           Confronto descrittivo tra titolo base e peer group reale da provider esterno,
-          arricchito con dati storici salvati in Supabase.
+          persistito in Supabase e arricchito con dati storici salvati nel data layer.
         </p>
       </div>
     </header>
@@ -39,7 +41,8 @@ export function renderPeerComparePage() {
         <div>
           <h2>Peer Compare reale</h2>
           <p>
-            Peer group recuperato da FMP e metriche storiche lette da Supabase.
+            Apertura normale: lettura da Supabase. Bottone “Aggiorna dati reali”:
+            refresh da FMP e persistenza su Supabase.
           </p>
         </div>
       </div>
@@ -49,6 +52,26 @@ export function renderPeerComparePage() {
         <div class="symbol-selector">
           ${availablePeerSymbols.map(renderSymbolButton).join("")}
         </div>
+      </section>
+
+      <section class="peer-actions-row">
+        <button
+          class="button"
+          type="button"
+          onclick="loadRealPeerCompare('${selectedPeerSymbol}', false)"
+          ${peerCompareLoading ? "disabled" : ""}
+        >
+          Leggi da Supabase
+        </button>
+
+        <button
+          class="secondary-button"
+          type="button"
+          onclick="loadRealPeerCompare('${selectedPeerSymbol}', true)"
+          ${peerCompareLoading ? "disabled" : ""}
+        >
+          Aggiorna dati reali
+        </button>
       </section>
 
       <div id="peer-compare-status" class="description-box">
@@ -87,10 +110,10 @@ function renderSymbolButton(symbol) {
 window.selectPeerSymbol = function selectPeerSymbol(symbol) {
   selectedPeerSymbol = symbol;
   updatePeerButtons();
-  loadRealPeerCompare(symbol);
+  loadRealPeerCompare(symbol, false);
 };
 
-async function loadRealPeerCompare(symbol) {
+window.loadRealPeerCompare = async function loadRealPeerCompare(symbol, refresh = false) {
   const statusEl = document.querySelector("#peer-compare-status");
   const contentEl = document.querySelector("#peer-compare-real-content");
 
@@ -98,14 +121,20 @@ async function loadRealPeerCompare(symbol) {
     return;
   }
 
+  peerCompareLoading = true;
+  peerCompareLastMode = refresh ? "refresh" : "cache";
+
   statusEl.innerHTML = `
-    <p>Caricamento peer group reale per <strong>${symbol}</strong>...</p>
+    <p>
+      ${refresh ? "Aggiornamento da FMP e persistenza Supabase" : "Lettura da Supabase"}
+      per <strong>${symbol}</strong>...
+    </p>
   `;
 
   contentEl.innerHTML = "";
 
   try {
-    const payload = await fetchRealPeerComparison(symbol, 8);
+    const payload = await fetchRealPeerComparison(symbol, 8, refresh);
     const rows = payload?.data?.rows || [];
 
     if (!rows.length) {
@@ -120,6 +149,7 @@ async function loadRealPeerCompare(symbol) {
         Peer Compare reale caricato. Peer rilevati:
         <strong>${payload.data.peers_count}</strong>.
         Completezza: <strong>${payload.data_quality?.completeness_score || 0}%</strong>.
+        Fonte lettura: <strong>${payload.data.source || "n/d"}</strong>.
       </p>
     `;
 
@@ -129,8 +159,10 @@ async function loadRealPeerCompare(symbol) {
       <p><strong>Errore Peer Compare reale:</strong> ${error.message}</p>
       <p>La pagina resta disponibile con fallback mock.</p>
     `;
+  } finally {
+    peerCompareLoading = false;
   }
-}
+};
 
 function renderRealPeerTable(payload) {
   const rows = payload.data.rows;
@@ -160,7 +192,19 @@ function renderRealPeerTable(payload) {
 
   return `
     <section class="detail-section">
-      <h3>Peer group reale</h3>
+      <div class="real-data-section-header">
+        <div>
+          <h3>Peer group reale</h3>
+          <p class="muted-text">
+            Fonte dati: ${formatValue(payload.data.source)}.
+            Peer group fetched at: ${formatValue(payload.data.peer_group_fetched_at)}.
+          </p>
+        </div>
+
+        <span class="quality-badge quality-badge--neutral">
+          ${peerCompareLastMode === "refresh" ? "FMP refresh" : "Supabase cache"}
+        </span>
+      </div>
 
       <div class="history-table-wrapper history-table-wrapper--desktop">
         <table class="history-table">
