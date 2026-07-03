@@ -43,9 +43,9 @@ export function renderCongressDisclosuresPage() {
         <p class="eyebrow">Public Disclosure Layer</p>
         <h1>Congress Disclosures</h1>
         <p class="subtitle">
-          Disclosure pubbliche e filing ufficiali. La sezione FMP mostra eventuali dati
-          provider, mentre la sezione Official House Filings usa l'indice ufficiale House
-          persistito in Supabase.
+          Disclosure pubbliche e filing ufficiali. La sezione provider può non essere
+          disponibile con il piano API attuale; la sezione Official House Filings usa
+          invece fonte ufficiale House persistita in Supabase.
         </p>
       </div>
     </header>
@@ -95,13 +95,13 @@ export function renderCongressDisclosuresPage() {
         </button>
       </section>
 
+      ${renderOfficialHouseFilingsSection()}
+
       <div id="congress-disclosures-status" class="description-box">
-        Caricamento disclosure Congresso...
+        Caricamento disclosure provider...
       </div>
 
       <div id="congress-disclosures-real-content"></div>
-
-      ${renderOfficialHouseFilingsSection()}
 
       <section class="detail-section">
         <h3>Fallback mock educativo</h3>
@@ -279,7 +279,7 @@ window.loadRealCongressDisclosures = async function loadRealCongressDisclosures(
             <strong>Dataset Congress provider non disponibile con il piano API attuale.</strong>
           </p>
           <p>
-            La sezione Official House Filings sotto resta disponibile usando fonte ufficiale House.
+            Usa la sezione Official House Filings sopra per caricare i filing ufficiali House.
           </p>
         `;
 
@@ -482,6 +482,10 @@ function renderOfficialHouseFilingsTable(payload) {
 
   const rows = records
     .map((record) => {
+      const documentLink = record.document_url
+        ? `${record.document_url}Apri PDF</a>`
+        : "n/d";
+
       return `
         <tr>
           <td>${formatValue(record.filing_date)}</td>
@@ -489,13 +493,7 @@ function renderOfficialHouseFilingsTable(payload) {
           <td>${formatValue(record.filer_last_name)}</td>
           <td>${formatValue(record.filer_first_name)}</td>
           <td>${formatValue(record.filing_type_label)}</td>
-          <td>
-            ${
-              record.document_url
-                ? `${record.document_url}Apri PDF</a>`
-                : "n/d"
-            }
-          </td>
+          <td>${documentLink}</td>
         </tr>
       `;
     })
@@ -645,8 +643,7 @@ function renderCongressProviderUnavailable(payload) {
       </section>
 
       <section class="note-box">
-        La sezione Official House Filings usa invece fonte ufficiale House e resta
-        disponibile per indicizzare i filing pubblici.
+        Usa la sezione Official House Filings sopra per caricare dati dai filing ufficiali House.
       </section>
     </section>
   `;
