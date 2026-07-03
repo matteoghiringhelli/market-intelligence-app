@@ -13,6 +13,7 @@ export default async function handler(req, res) {
     : "P";
   const limit = parseLimit(req.query.limit);
   const refresh = String(req.query.refresh || "false") === "true";
+  const zipUrl = req.query.zipUrl ? String(req.query.zipUrl).trim() : null;
 
   try {
     if (chamber === "senate") {
@@ -23,7 +24,8 @@ export default async function handler(req, res) {
     if (chamber !== "house") {
       return res.status(400).json({
         error: "UNSUPPORTED_OFFICIAL_CHAMBER",
-        message: "V1 supporta chamber=house. chamber=senate restituisce stato fonte ufficiale ma non parser automatico.",
+        message:
+          "V1 supporta chamber=house. chamber=senate restituisce stato fonte ufficiale ma non parser automatico.",
         fetched_at: new Date().toISOString()
       });
     }
@@ -43,7 +45,8 @@ export default async function handler(req, res) {
     if (!records.length || refresh) {
       const result = await fetchOfficialHouseFilingIndex({
         year,
-        filingType
+        filingType,
+        zipUrl
       });
 
       if (!result.ok) {
@@ -85,6 +88,7 @@ export default async function handler(req, res) {
       refresh_metadata: refreshPayload
         ? {
             source_url: refreshPayload.source_url || null,
+            source_resolution: refreshPayload.source_resolution || null,
             records_count: refreshPayload.data?.records_count || 0
           }
         : null,

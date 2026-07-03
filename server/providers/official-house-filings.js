@@ -8,48 +8,63 @@ const HOUSE_BASE_URL = "https://disclosures-clerk.house.gov";
 
 export async function fetchOfficialHouseFilingIndex({
   year = new Date().getFullYear(),
-  filingType = "P"
+  filingType = "P",
+  zipUrl = null
 } = {}) {
   const fetchedAt = new Date().toISOString();
 
   try {
-    const indexPageResponse = await fetch(HOUSE_FINANCIAL_DISCLOSURE_URL);
+    const resolvedZipUrl =
+      zipUrl ||
+      process.env[`HOUSE_DISCLOSURE_ZIP_URL_${year}`] ||
+      null;
 
-    if (!indexPageResponse.ok) {
-      return {
-        ok: false,
-        status: indexPageResponse.status,
-        payload: {
-          error: "HOUSE_OFFICIAL_INDEX_PAGE_HTTP_ERROR",
-          message:
-            "Errore HTTP durante il recupero della pagina House Financial Disclosure.",
+    let finalZipUrl = resolvedZipUrl;
+
+    if (!finalZipUrl) {
+      const indexPageResponse = await fetch(HOUSE_FINANCIAL_DISCLOSURE_URL);
+
+      if (!indexPageResponse.ok) {
+        return {
+          ok: false,
           status: indexPageResponse.status,
-          source_id: "house_official_financial_disclosure",
-          fetched_at: fetchedAt
-        }
-      };
+          payload: {
+            error: "HOUSE_OFFICIAL_INDEX_PAGE_HTTP_ERROR",
+            message:
+              "Errore HTTP durante il recupero della pagina House Financial Disclosure.",
+            status: indexPageResponse.status,
+            source_id: "house_official_financial_disclosure",
+            fetched_at: fetchedAt
+          }
+        };
+      }
+
+      const html = await indexPageResponse.text();
+      finalZipUrl = discoverHouseZipUrl(html, year);
     }
 
-    const html = await indexPageResponse.text();
-    const zipUrl = discoverHouseZipUrl(html, year);
-
-    if (!zipUrl) {
+    if (!finalZipUrl) {
       return {
         ok: false,
         status: 404,
         payload: {
           error: "HOUSE_OFFICIAL_ZIP_NOT_FOUND",
           message:
-            "Non è stato possibile individuare automaticamente il link ZIP annuale nella pagina ufficiale House.",
+            "Non è stato possibile individuare automaticamente il link ZIP annuale nella pagina ufficiale House. Passa zipUrl come query param oppure configura HOUSE_DISCLOSURE_ZIP_URL_<YEAR> su Vercel.",
           source_id: "house_official_financial_disclosure",
           source_url: HOUSE_FINANCIAL_DISCLOSURE_URL,
           filing_year: year,
-          fetched_at: fetchedAt
+          fetched_at: fetchedAt,
+          remediation: {
+            query_param_example:
+              "/api/market/congress-official-filings-db?chamber=house&year=2026&filingType=P&refresh=true&zipUrl=URL_DELLO_ZIP",
+            env_var_example: `HOUSE_DISCLOSURE_ZIP_URL_${year}`
+          }
         }
       };
     }
 
-    const zipResponse = await fetch(zipUrl);
+    const zipResponse = await fetch(finalZipUrl);
 
     if (!zipResponse.ok) {
       return {
@@ -60,7 +75,7 @@ export async function fetchOfficialHouseFilingIndex({
           message: "Errore HTTP durante il download dello ZIP ufficiale House.",
           status: zipResponse.status,
           source_id: "house_official_financial_disclosure",
-          source_url: zipUrl,
+          source_url: finalZipUrl,
           filing_year: year,
           fetched_at: fetchedAt
         }
@@ -70,43 +85,39 @@ export async function fetchOfficialHouseFilingIndex({
     const zipBuffer = await zipResponse.arrayBuffer();
     const zip = await JSZip.loadAsync(zipBuffer);
 
-    const xmlFileName = Object.keys(zip.files).find((fileName) => {
-      return fileName.toLowerCase().endsWith(".xml");
-    });
+    const fileNames = Object.keys(zip.files);
+    const xmlFileName =
+      fileNames.find((fileName) => fileName.toLowerCase().endsWith(".xml")) ||
+      fileNames.find((fileName) => fileName.toLowerCase().endsWith(".txt"));
 
     if (!xmlFileName) {
       return {
         ok: false,
         status: 422,
         payload: {
-          error: "HOUSE_OFFICIAL_XML_NOT_FOUND",
+          error: "HOUSE_OFFICIAL_INDEX_FILE_NOT_FOUND",
           message:
-            "Lo ZIP ufficiale House non contiene un file XML individuabile.",
+            "Lo ZIP ufficiale House non contiene un file XML/TXT individuabile.",
           source_id: "house_official_financial_disclosure",
-          source_url: zipUrl,
+          source_url: finalZipUrl,
           filing_year: year,
+          available_files: fileNames,
           fetched_at: fetchedAt
         }
       };
     }
 
-    const xmlText = await zip.file(xmlFileName).async("text");
+    const fileText = await zip.file(xmlFileName).async("text");
+    const parsedRows = xmlFileName.toLowerCase().endsWith(".xml")
+      ? parseXmlRows(fileText)
+      : parseDelimitedRows(fileText);
 
-    const parser = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: "",
-      trimValues: true
-    });
-
-    const parsedXml = parser.parse(xmlText);
-    const rawItems = collectLikelyRows(parsedXml);
-
-    const filings = rawItems
+    const filings = parsedRows
       .map((item) =>
         normalizeHouseFiling({
           item,
           year,
-          sourceUrl: zipUrl,
+          sourceUrl: finalZipUrl,
           fetchedAt
         })
       )
@@ -133,7 +144,8 @@ export async function fetchOfficialHouseFilingIndex({
           data_as_of: String(year),
           completeness_score: calculateCompleteness(filteredFilings)
         },
-        source_url: zipUrl,
+        source_url: finalZipUrl,
+        source_resolution: resolvedZipUrl ? "explicit_zip_url" : "auto_discovery",
         disclaimer:
           "House official filing index. V1 indicizza i filing; l'estrazione delle singole transazioni richiede un parser documentale/PDF successivo."
       }
@@ -153,8 +165,9 @@ export async function fetchOfficialHouseFilingIndex({
 }
 
 function discoverHouseZipUrl(html, year) {
-  const hrefRegex = new RegExp("href=[^\"']+[\"']", "gi");
   const hrefs = [];
+  const hrefRegex = new RegExp("href=[\"']([^\"']+)[\"']", "gi");
+
   let match = hrefRegex.exec(html);
 
   while (match) {
@@ -197,6 +210,48 @@ function normalizeHouseUrl(value) {
   }
 
   return `${HOUSE_BASE_URL}/${rawValue}`;
+}
+
+function parseXmlRows(xmlText) {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: "",
+    trimValues: true
+  });
+
+  const parsedXml = parser.parse(xmlText);
+  return collectLikelyRows(parsedXml);
+}
+
+function parseDelimitedRows(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    return [];
+  }
+
+  const delimiter = lines[0].includes("\t") ? "\t" : ",";
+  const headers = splitDelimitedLine(lines[0], delimiter);
+
+  return lines.slice(1).map((line) => {
+    const values = splitDelimitedLine(line, delimiter);
+    const row = {};
+
+    headers.forEach((header, index) => {
+      row[header] = values[index] || null;
+    });
+
+    return row;
+  });
+}
+
+function splitDelimitedLine(line, delimiter) {
+  return String(line)
+    .split(delimiter)
+    .map((value) => value.trim().replace(/^"|"$/g, ""));
 }
 
 function collectLikelyRows(value) {
