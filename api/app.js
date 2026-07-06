@@ -11,10 +11,13 @@ const routeLoaders = {
 
   "market/peer-compare-db": () =>
     import("../server/market/peer-compare-db.js"),
+
   "market/fundamentals-db": () =>
     import("../server/market/fundamentals-db.js"),
+
   "market/universe-db": () =>
     import("../server/market/universe-db.js"),
+
   "market/top-bullish-signals-db": () =>
     import("../server/market/top-bullish-signals-db.js"),
 
@@ -23,6 +26,7 @@ const routeLoaders = {
 
   "market/congress-official-filings-db": () =>
     import("../server/market/congress-official-filings-db.js"),
+
   "market/congress-official-pdf-transactions-db": () =>
     import("../server/market/congress-official-pdf-transactions-db.js"),
 
@@ -33,7 +37,7 @@ const routeLoaders = {
     import("../server/jobs/detect-technical-patterns.js"),
 
   "jobs/fundamentals-lite-update": () =>
-    import("../server/jobs/fundamentals-lite-update.js"),
+    import("../server/jobs/fundamentals-lite-update.js")
 };
 
 export default async function handler(req, res) {
