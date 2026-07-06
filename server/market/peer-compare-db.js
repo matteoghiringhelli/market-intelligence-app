@@ -4,12 +4,17 @@ import {
   getPeerGroupFromDb,
   upsertPeerGroup
 } from "../lib/peer-congress-repository.js";
-import { getFundamentalsForTickers } from "../lib/fundamentals-repository.js";
+import {
+  computeAndUpsertFundamentalsLite,
+  getFundamentalsForTickers
+} from "../lib/fundamentals-repository.js";
 
 export default async function handler(req, res) {
   const symbol = String(req.query.symbol || "AAPL").trim().toUpperCase();
   const limit = parseLimit(req.query.limit);
   const refresh = String(req.query.refresh || "false") === "true";
+  const refreshFundamentals =
+    String(req.query.refreshFundamentals || "false") === "true";
 
   try {
     let peerGroup = refresh ? null : await getPeerGroupFromDb(symbol);
@@ -39,11 +44,19 @@ export default async function handler(req, res) {
     const peers = (peerGroup?.peers || []).slice(0, limit);
     const tickers = [symbol, ...peers];
 
+    let fundamentalsRefreshResults = [];
+
+    if (refreshFundamentals) {
+      fundamentalsRefreshResults = await refreshFundamentalsLiteForTickers(tickers);
+    }
+
     const latestPrices = await loadLatestPrices(tickers);
     const historySummary = await loadHistorySummary(tickers);
     const fundamentals = await getFundamentalsForTickers(tickers);
 
     const basePrice = latestPrices.find((row) => row.ticker === symbol) || null;
+    const baseFundamental =
+      fundamentals.find((row) => row.ticker === symbol) || null;
 
     const rows = tickers.map((ticker) => {
       const price = latestPrices.find((row) => row.ticker === ticker) || null;
@@ -94,6 +107,28 @@ export default async function handler(req, res) {
               price_position_52w: fundamental.price_position_52w,
               records_count: fundamental.records_count,
 
+              relative_return_260d_vs_base:
+                baseFundamental?.return_260d !== null &&
+                baseFundamental?.return_260d !== undefined &&
+                fundamental.return_260d !== null &&
+                fundamental.return_260d !== undefined
+                  ? roundNumber(
+                      Number(fundamental.return_260d) -
+                        Number(baseFundamental.return_260d)
+                    )
+                  : null,
+
+              relative_volatility_60d_vs_base:
+                baseFundamental?.volatility_60d !== null &&
+                baseFundamental?.volatility_60d !== undefined &&
+                fundamental.volatility_60d !== null &&
+                fundamental.volatility_60d !== undefined
+                  ? roundNumber(
+                      Number(fundamental.volatility_60d) -
+                        Number(baseFundamental.volatility_60d)
+                    )
+                  : null,
+
               completeness_score: fundamental.completeness_score,
               fetched_at: fundamental.fetched_at,
               source_id: fundamental.source_id
@@ -110,6 +145,8 @@ export default async function handler(req, res) {
         records_count: rows.length,
         peers_count: peers.length,
         peer_group_fetched_at: peerGroup?.fetched_at || null,
+        refresh_fundamentals: refreshFundamentals,
+        fundamentals_refresh_results: fundamentalsRefreshResults,
         rows
       },
       data_quality: {
@@ -119,7 +156,7 @@ export default async function handler(req, res) {
         completeness_score: calculateCompleteness(rows)
       },
       methodology:
-        "Peer set persistito in Supabase; prezzi, storico e fundamentals-lite letti da Supabase.",
+        "Peer set persistito in Supabase; prezzi, storico e fundamentals-lite letti da Supabase. Fundamentals-lite derivati da price_history interno, non da fondamentali contabili.",
       disclaimer:
         "Confronto peer descrittivo. Non implica ranking, raccomandazione o valutazione buy/sell."
     });
@@ -130,6 +167,33 @@ export default async function handler(req, res) {
       fetched_at: new Date().toISOString()
     });
   }
+}
+
+async function refreshFundamentalsLiteForTickers(tickers) {
+  const results = [];
+
+  for (const ticker of tickers) {
+    try {
+      const result = await computeAndUpsertFundamentalsLite(ticker);
+
+      results.push({
+        ticker,
+        ok: Boolean(result.record),
+        upserted: result.upserted,
+        message: result.message
+      });
+    } catch (error) {
+      results.push({
+        ticker,
+        ok: false,
+        upserted: 0,
+        error: "FUNDAMENTALS_LITE_COMPUTE_FAILED",
+        message: error.message
+      });
+    }
+  }
+
+  return results;
 }
 
 async function loadLatestPrices(tickers) {
@@ -175,7 +239,7 @@ function parseLimit(limitQuery) {
 }
 
 function roundNumber(value) {
-  return Math.round(Number(value) * 100) / 100;
+  return Math.round(Number(value) * 1000000) / 1000000;
 }
 
 function calculateCompleteness(rows) {
