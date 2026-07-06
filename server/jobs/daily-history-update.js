@@ -213,7 +213,8 @@ async function resolveRequestedSymbols(req) {
 
     const symbols = universeRows
       .map((row) => String(row.ticker || "").trim().toUpperCase())
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter(isSupportedDailyHistoryTicker);
 
     return {
       mode: "universe-batch",
@@ -241,7 +242,8 @@ function parseSymbols(symbolsQuery) {
   return String(symbolsQuery)
     .split(",")
     .map((symbol) => symbol.trim().toUpperCase())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter(isSupportedDailyHistoryTicker);
 }
 
 function parseBatchSize(batchSizeQuery) {
@@ -296,4 +298,25 @@ function buildIngestionRunNotes(symbolResolution) {
   }
 
   return "Daily historical EOD update persisted to Supabase.";
+}
+
+
+function isSupportedDailyHistoryTicker(symbol) {
+  const value = String(symbol || "").trim().toUpperCase();
+
+  if (!value) return false;
+  if (value.includes(" ")) return false;
+  if (value.includes(".")) return false;
+  if (value.includes("$")) return false;
+  if (value.includes("^")) return false;
+  if (value.includes("/")) return false;
+  if (value.length > 8) return false;
+
+  if (value.endsWith("W")) return false;
+  if (value.endsWith("WS")) return false;
+  if (value.endsWith("WT")) return false;
+  if (value.endsWith("U")) return false;
+  if (value.endsWith("R")) return false;
+
+  return /^[A-Z][A-Z0-9-]*$/.test(value);
 }

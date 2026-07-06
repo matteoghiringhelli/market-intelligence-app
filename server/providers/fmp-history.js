@@ -1,167 +1,160 @@
-const HISTORY_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
-
-globalThis.fmpHistoricalPriceCache = globalThis.fmpHistoricalPriceCache || new Map();
+const YAHOO_CHART_BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart";
 
 export async function fetchFmpHistoricalPrices({
   symbol,
   from,
   to,
-  useCache = true
+  useCache = false
 }) {
-  const apiKey = process.env.FMP_API_KEY;
-  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+  return fetchYahooHistoricalPrices({
+    symbol,
+    from,
+    to,
+    useCache
+  });
+}
+
+async function fetchYahooHistoricalPrices({
+  symbol,
+  from,
+  to
+}) {
+  const fetchedAt = new Date().toISOString();
+  const normalizedSymbol = normalizeYahooSymbol(symbol);
 
   if (!normalizedSymbol) {
     return {
       ok: false,
       status: 400,
       payload: {
-        error: "MISSING_SYMBOL",
-        message: "Parametro symbol mancante.",
-        source_id: "financial_modeling_prep",
-        fetched_at: new Date().toISOString()
+        error: "UNSUPPORTED_HISTORY_SYMBOL",
+        message:
+          "Ticker non supportato dal provider storico V1. Sono ammessi solo ticker equity semplici.",
+        symbol,
+        source_id: "yahoo_chart",
+        fetched_at: fetchedAt
       }
     };
-  }
-
-  if (!apiKey) {
-    return {
-      ok: false,
-      status: 500,
-      payload: {
-        error: "MISSING_FMP_API_KEY",
-        message: "La variabile FMP_API_KEY non è configurata su Vercel.",
-        source_id: "financial_modeling_prep",
-        fetched_at: new Date().toISOString()
-      }
-    };
-  }
-
-  const cacheKey = buildHistoryCacheKey({
-    symbol: normalizedSymbol,
-    from,
-    to
-  });
-
-  if (useCache) {
-    const cachedPayload = getCachedHistoricalPrices(cacheKey);
-
-    if (cachedPayload) {
-      return {
-        ok: true,
-        status: 200,
-        payload: {
-          ...cachedPayload,
-          cache: {
-            status: "hit",
-            ttl_hours: 12
-          }
-        }
-      };
-    }
-  }
-
-  const url = new URL("https://financialmodelingprep.com/stable/historical-price-eod/full");
-  url.searchParams.set("symbol", normalizedSymbol);
-  url.searchParams.set("apikey", apiKey);
-
-  if (from) {
-    url.searchParams.set("from", from);
-  }
-
-  if (to) {
-    url.searchParams.set("to", to);
   }
 
   try {
-    const response = await fetch(url.toString());
+    const period1 = toUnixSeconds(startOfDate(from));
+    const period2 = toUnixSeconds(addDays(startOfDate(to), 1));
+
+    const url = new URL(`${YAHOO_CHART_BASE_URL}/${encodeURIComponent(normalizedSymbol)}`);
+    url.searchParams.set("period1", String(period1));
+    url.searchParams.set("period2", String(period2));
+    url.searchParams.set("interval", "1d");
+    url.searchParams.set("events", "history");
+    url.searchParams.set("includeAdjustedClose", "true");
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 MarketIntelligenceApp/1.0 educational data retrieval"
+      }
+    });
 
     if (!response.ok) {
       return {
         ok: false,
         status: response.status,
         payload: {
-          error: "FMP_HISTORY_HTTP_ERROR",
-          message: "Errore HTTP ricevuto da Financial Modeling Prep durante il recupero storico.",
+          error: "YAHOO_HISTORY_HTTP_ERROR",
+          message:
+            "Errore HTTP ricevuto da Yahoo Chart durante il recupero storico.",
           status: response.status,
-          source_id: "financial_modeling_prep",
-          fetched_at: new Date().toISOString()
+          symbol,
+          normalized_symbol: normalizedSymbol,
+          source_id: "yahoo_chart",
+          fetched_at: fetchedAt
         }
       };
     }
 
     const raw = await response.json();
-    const rows = normalizeFmpHistoricalRows(raw);
+    const chartResult = raw?.chart?.result?.[0];
 
-    if (!rows.length) {
+    if (!chartResult) {
       return {
         ok: false,
-        status: 404,
+        status: 502,
         payload: {
-          error: "FMP_HISTORY_EMPTY_RESPONSE",
-          message: `Nessun dato storico disponibile per ${normalizedSymbol}.`,
-          source_id: "financial_modeling_prep",
-          fetched_at: new Date().toISOString()
+          error: "YAHOO_HISTORY_EMPTY_RESULT",
+          message: "Yahoo Chart non ha restituito risultati per il ticker.",
+          symbol,
+          normalized_symbol: normalizedSymbol,
+          source_id: "yahoo_chart",
+          provider_response: raw,
+          fetched_at: fetchedAt
         }
       };
     }
 
-    const fetchedAt = new Date().toISOString();
+    const timestamps = chartResult.timestamp || [];
+    const quote = chartResult.indicators?.quote?.[0] || {};
+    const adjClose = chartResult.indicators?.adjclose?.[0]?.adjclose || [];
 
-    const normalizedRows = rows.map((row) => {
-      return {
-        symbol: row.symbol || normalizedSymbol,
-        date: row.date || null,
-        open: normalizeNumber(row.open),
-        high: normalizeNumber(row.high),
-        low: normalizeNumber(row.low),
-        close: normalizeNumber(row.close),
-        volume: normalizeNumber(row.volume),
-        change: normalizeNumber(row.change),
-        changePercent: normalizeNumber(row.changePercent),
-        vwap: normalizeNumber(row.vwap),
+    const records = timestamps
+      .map((timestamp, index) => {
+        const date = new Date(timestamp * 1000).toISOString().slice(0, 10);
 
-        source_id: "financial_modeling_prep",
-        fetched_at: fetchedAt,
-        data_as_of: row.date || null,
-        completeness_score: calculateHistoricalRowCompletenessScore(row)
-      };
-    });
+        const open = normalizeNumber(quote.open?.[index]);
+        const high = normalizeNumber(quote.high?.[index]);
+        const low = normalizeNumber(quote.low?.[index]);
+        const close = normalizeNumber(quote.close?.[index]);
+        const volume = normalizeInteger(quote.volume?.[index]);
+        const adjustedClose = normalizeNumber(adjClose?.[index]);
 
-    const payload = {
-      data: {
-        symbol: normalizedSymbol,
-        provider: "fmp",
-        source_id: "financial_modeling_prep",
-        fetched_at: fetchedAt,
-        from: from || null,
-        to: to || null,
-        records_count: normalizedRows.length,
-        latest_record_date: normalizedRows[0]?.date || null,
-        records: normalizedRows
-      },
-      data_quality: {
-        source_id: "financial_modeling_prep",
-        fetched_at: fetchedAt,
-        data_as_of: normalizedRows[0]?.date || null,
-        records_count: normalizedRows.length,
-        average_completeness_score: calculateAverageCompleteness(normalizedRows)
-      },
-      disclaimer:
-        "Finalità esclusivamente informativa ed educativa. Dati storici descrittivi, nessuna consulenza finanziaria, nessun segnale operativo."
-    };
+        return {
+          ticker: String(symbol).trim().toUpperCase(),
+          symbol: String(symbol).trim().toUpperCase(),
+          date,
+          open,
+          high,
+          low,
+          close,
+          adjusted_close: adjustedClose,
+          volume,
+          source_id: "yahoo_chart",
+          fetched_at: fetchedAt,
+          data_as_of: date,
+          completeness_score: calculateRowCompleteness({
+            open,
+            high,
+            low,
+            close,
+            volume
+          })
+        };
+      })
+      .filter((record) => {
+        return record.date && record.close !== null;
+      });
 
-    setCachedHistoricalPrices(cacheKey, payload);
+    const latestRecordDate = records.length
+      ? records[records.length - 1].date
+      : null;
 
     return {
       ok: true,
       status: 200,
       payload: {
-        ...payload,
-        cache: {
-          status: "miss",
-          ttl_hours: 12
-        }
+        data: {
+          symbol: String(symbol).trim().toUpperCase(),
+          provider_symbol: normalizedSymbol,
+          records_count: records.length,
+          latest_record_date: latestRecordDate,
+          records
+        },
+        data_quality: {
+          source_id: "yahoo_chart",
+          fetched_at: fetchedAt,
+          data_as_of: latestRecordDate,
+          average_completeness_score: calculateAverageCompleteness(records)
+        },
+        disclaimer:
+          "Dati storici descrittivi da provider chart pubblico. Uso educativo, nessuna consulenza finanziaria."
       }
     };
   } catch (error) {
@@ -169,56 +162,73 @@ export async function fetchFmpHistoricalPrices({
       ok: false,
       status: 500,
       payload: {
-        error: "FMP_HISTORY_FETCH_FAILED",
-        message: "Impossibile recuperare i dati storici da Financial Modeling Prep.",
-        details: error.message,
-        source_id: "financial_modeling_prep",
-        fetched_at: new Date().toISOString()
+        error: "YAHOO_HISTORY_FETCH_FAILED",
+        message: error.message,
+        symbol,
+        normalized_symbol: normalizedSymbol,
+        source_id: "yahoo_chart",
+        fetched_at: fetchedAt
       }
     };
   }
 }
 
-function normalizeFmpHistoricalRows(raw) {
-  if (Array.isArray(raw)) {
-    return raw;
+function normalizeYahooSymbol(symbol) {
+  if (!symbol) {
+    return null;
   }
 
-  if (Array.isArray(raw?.historical)) {
-    return raw.historical;
+  const value = String(symbol).trim().toUpperCase();
+
+  if (!isSupportedDailyHistoryTicker(value)) {
+    return null;
   }
 
-  if (Array.isArray(raw?.data)) {
-    return raw.data;
-  }
-
-  return [];
+  return value;
 }
 
-function calculateHistoricalRowCompletenessScore(row) {
-  const requiredFields = ["date", "open", "high", "low", "close", "volume"];
+function isSupportedDailyHistoryTicker(symbol) {
+  const value = String(symbol || "").trim().toUpperCase();
 
-  const availableFields = requiredFields.filter((field) => {
-    return row[field] !== undefined && row[field] !== null && row[field] !== "";
-  });
+  if (!value) return false;
+  if (value.includes(" ")) return false;
+  if (value.includes(".")) return false;
+  if (value.includes("$")) return false;
+  if (value.includes("^")) return false;
+  if (value.includes("/")) return false;
+  if (value.length > 8) return false;
 
-  return Math.round((availableFields.length / requiredFields.length) * 100);
+  if (value.endsWith("W")) return false;
+  if (value.endsWith("WS")) return false;
+  if (value.endsWith("WT")) return false;
+  if (value.endsWith("U")) return false;
+  if (value.endsWith("R")) return false;
+
+  return /^[A-Z][A-Z0-9-]*$/.test(value);
 }
 
-function calculateAverageCompleteness(rows) {
-  if (!rows.length) {
-    return 0;
+function startOfDate(value) {
+  const date = value ? new Date(`${value}T00:00:00Z`) : new Date();
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date();
   }
 
-  const total = rows.reduce((sum, row) => {
-    return sum + Number(row.completeness_score || 0);
-  }, 0);
+  return date;
+}
 
-  return Math.round(total / rows.length);
+function addDays(date, days) {
+  const nextDate = new Date(date);
+  nextDate.setUTCDate(nextDate.getUTCDate() + days);
+  return nextDate;
+}
+
+function toUnixSeconds(date) {
+  return Math.floor(date.getTime() / 1000);
 }
 
 function normalizeNumber(value) {
-  if (value === undefined || value === null || value === "") {
+  if (value === null || value === undefined) {
     return null;
   }
 
@@ -228,33 +238,40 @@ function normalizeNumber(value) {
     return null;
   }
 
-  return numberValue;
+  return Math.round(numberValue * 1000000) / 1000000;
 }
 
-function buildHistoryCacheKey({ symbol, from, to }) {
-  return `fmp-history:${symbol}:${from || "none"}:${to || "none"}`;
-}
-
-function getCachedHistoricalPrices(cacheKey) {
-  const cacheItem = globalThis.fmpHistoricalPriceCache.get(cacheKey);
-
-  if (!cacheItem) {
+function normalizeInteger(value) {
+  if (value === null || value === undefined) {
     return null;
   }
 
-  const ageMs = Date.now() - cacheItem.cachedAt;
+  const numberValue = Number(value);
 
-  if (ageMs > HISTORY_CACHE_TTL_MS) {
-    globalThis.fmpHistoricalPriceCache.delete(cacheKey);
+  if (Number.isNaN(numberValue)) {
     return null;
   }
 
-  return cacheItem.payload;
+  return Math.round(numberValue);
 }
 
-function setCachedHistoricalPrices(cacheKey, payload) {
-  globalThis.fmpHistoricalPriceCache.set(cacheKey, {
-    cachedAt: Date.now(),
-    payload
-  });
+function calculateRowCompleteness(record) {
+  const fields = ["open", "high", "low", "close", "volume"];
+  const present = fields.filter((field) => {
+    return record[field] !== null && record[field] !== undefined;
+  }).length;
+
+  return Math.round((present / fields.length) * 100);
+}
+
+function calculateAverageCompleteness(records) {
+  if (!records.length) {
+    return 0;
+  }
+
+  const total = records.reduce((sum, record) => {
+    return sum + Number(record.completeness_score || 0);
+  }, 0);
+
+  return Math.round(total / records.length);
 }
