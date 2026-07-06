@@ -1,10 +1,10 @@
 import { fetchFmpPeers } from "../providers/fmp-peers.js";
 import { getSupabaseAdminClient } from "../lib/supabase-admin.js";
 import {
-import { getFundamentalsForTickers } from "../lib/fundamentals-repository.js";
   getPeerGroupFromDb,
   upsertPeerGroup
 } from "../lib/peer-congress-repository.js";
+import { getFundamentalsForTickers } from "../lib/fundamentals-repository.js";
 
 export default async function handler(req, res) {
   const symbol = String(req.query.symbol || "AAPL").trim().toUpperCase();
@@ -55,11 +55,16 @@ export default async function handler(req, res) {
         role: ticker === symbol ? "base" : "peer",
         latest_close: price?.close ?? null,
         latest_date: price?.date ?? null,
-        source_id: price?.source_id || summary?.source_id || peerGroup?.source_id || "financial_modeling_prep",
+        source_id:
+          price?.source_id ||
+          summary?.source_id ||
+          peerGroup?.source_id ||
+          "financial_modeling_prep",
         records_count: summary?.records_count || 0,
         first_date: summary?.first_date || null,
         latest_history_date: summary?.latest_date || null,
-        average_completeness_score: summary?.average_completeness_score || null,
+        average_completeness_score:
+          summary?.average_completeness_score || null,
         relative_close_vs_base:
           basePrice?.close && price?.close
             ? roundNumber(
@@ -105,7 +110,7 @@ export default async function handler(req, res) {
         completeness_score: calculateCompleteness(rows)
       },
       methodology:
-        "Peer set persistito in Supabase da FMP Stock Peer Comparison API; metriche prezzi/storico lette da Supabase price_history serving views.",
+        "Peer set persistito in Supabase da FMP Stock Peer Comparison API; prezzi/storico e fundamentals sintetici letti da Supabase serving/cache.",
       disclaimer:
         "Confronto peer descrittivo. Non implica ranking, raccomandazione o valutazione buy/sell."
     });

@@ -1,13 +1,5 @@
-const YAHOO_QUOTE_SUMMARY_BASE_URL =
-  "https://query1.finance.yahoo.com/v10/finance/quoteSummary";
-
-const MODULES = [
-  "price",
-  "summaryDetail",
-  "defaultKeyStatistics",
-  "financialData",
-  "assetProfile"
-];
+const YAHOO_QUOTE_BASE_URL =
+  "https://query1.finance.yahoo.com/v7/finance/quote";
 
 export async function fetchYahooFundamentals(symbol) {
   const fetchedAt = new Date().toISOString();
@@ -28,16 +20,14 @@ export async function fetchYahooFundamentals(symbol) {
   }
 
   try {
-    const url = new URL(
-      `${YAHOO_QUOTE_SUMMARY_BASE_URL}/${encodeURIComponent(normalizedSymbol)}`
-    );
-
-    url.searchParams.set("modules", MODULES.join(","));
+    const url = new URL(YAHOO_QUOTE_BASE_URL);
+    url.searchParams.set("symbols", normalizedSymbol);
 
     const response = await fetch(url.toString(), {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 MarketIntelligenceApp/1.0 educational fundamentals retrieval"
+          "Mozilla/5.0 MarketIntelligenceApp/1.0 educational quote retrieval",
+        "Accept": "application/json,text/plain,*/*"
       }
     });
 
@@ -47,7 +37,7 @@ export async function fetchYahooFundamentals(symbol) {
         status: response.status,
         payload: {
           error: "YAHOO_FUNDAMENTALS_HTTP_ERROR",
-          message: "Errore HTTP da Yahoo Quote Summary.",
+          message: "Errore HTTP da Yahoo Finance quote endpoint.",
           status: response.status,
           symbol: normalizedSymbol,
           source_id: "yahoo_quote_summary",
@@ -57,15 +47,15 @@ export async function fetchYahooFundamentals(symbol) {
     }
 
     const raw = await response.json();
-    const result = raw?.quoteSummary?.result?.[0];
+    const quote = raw?.quoteResponse?.result?.[0];
 
-    if (!result) {
+    if (!quote) {
       return {
         ok: false,
         status: 502,
         payload: {
           error: "YAHOO_FUNDAMENTALS_EMPTY_RESULT",
-          message: "Yahoo Quote Summary non ha restituito fundamentals.",
+          message: "Yahoo Finance quote endpoint non ha restituito dati.",
           symbol: normalizedSymbol,
           source_id: "yahoo_quote_summary",
           provider_response: raw,
@@ -76,7 +66,7 @@ export async function fetchYahooFundamentals(symbol) {
 
     const record = normalizeFundamentalRecord({
       symbol: normalizedSymbol,
-      result,
+      quote,
       fetchedAt
     });
 
@@ -95,7 +85,7 @@ export async function fetchYahooFundamentals(symbol) {
           completeness_score: record.completeness_score
         },
         disclaimer:
-          "Fondamentali sintetici da provider pubblico Yahoo Quote Summary. Uso descrittivo ed educativo, nessuna consulenza finanziaria."
+          "Fondamentali sintetici da Yahoo Finance quote endpoint. Uso descrittivo ed educativo, nessuna consulenza finanziaria."
       }
     };
   } catch (error) {
@@ -115,34 +105,33 @@ export async function fetchYahooFundamentals(symbol) {
 
 function normalizeFundamentalRecord({
   symbol,
-  result,
+  quote,
   fetchedAt
 }) {
-  const price = result.price || {};
-  const summaryDetail = result.summaryDetail || {};
-  const keyStats = result.defaultKeyStatistics || {};
-  const financialData = result.financialData || {};
-
   const record = {
     ticker: symbol,
     company_name:
-      pickRaw(price.longName) ||
-      pickRaw(price.shortName) ||
+      quote.longName ||
+      quote.shortName ||
+      quote.displayName ||
       null,
-    market_cap: pickNumber(price.marketCap),
-    trailing_pe: pickNumber(summaryDetail.trailingPE),
-    forward_pe: pickNumber(summaryDetail.forwardPE),
-    price_to_book: pickNumber(keyStats.priceToBook),
-    profit_margin: pickNumber(financialData.profitMargins),
-    return_on_equity: pickNumber(financialData.returnOnEquity),
-    debt_to_equity: pickNumber(financialData.debtToEquity),
-    current_ratio: pickNumber(financialData.currentRatio),
-    revenue_growth: pickNumber(financialData.revenueGrowth),
-    gross_margins: pickNumber(financialData.grossMargins),
+
+    market_cap: normalizeNumber(quote.marketCap),
+    trailing_pe: normalizeNumber(quote.trailingPE),
+    forward_pe: normalizeNumber(quote.forwardPE),
+    price_to_book: normalizeNumber(quote.priceToBook),
+
+    profit_margin: null,
+    return_on_equity: null,
+    debt_to_equity: null,
+    current_ratio: null,
+    revenue_growth: null,
+    gross_margins: null,
+
     source_id: "yahoo_quote_summary",
     fetched_at: fetchedAt,
     data_as_of: fetchedAt.slice(0, 10),
-    raw_payload: result
+    raw_payload: quote
   };
 
   record.completeness_score = calculateCompleteness(record);
@@ -150,35 +139,18 @@ function normalizeFundamentalRecord({
   return record;
 }
 
-function pickNumber(value) {
-  if (value === null || value === undefined) {
+function normalizeNumber(value) {
+  if (value === null || value === undefined || value === "") {
     return null;
   }
 
-  const rawValue =
-    typeof value === "object" && value.raw !== undefined
-      ? value.raw
-      : value;
-
-  const numberValue = Number(rawValue);
+  const numberValue = Number(value);
 
   if (Number.isNaN(numberValue)) {
     return null;
   }
 
   return Math.round(numberValue * 1000000) / 1000000;
-}
-
-function pickRaw(value) {
-  if (value === null || value === undefined) {
-    return null;
-  }
-
-  if (typeof value === "object" && value.raw !== undefined) {
-    return value.raw;
-  }
-
-  return value;
 }
 
 function calculateCompleteness(record) {
