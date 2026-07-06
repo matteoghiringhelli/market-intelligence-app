@@ -3,6 +3,8 @@ import {
   getFundamentalsForTickers
 } from "../lib/fundamentals-repository.js";
 
+const IMPLEMENTATION_VERSION = "fundamentals-lite-v2-internal-price-history";
+
 export default async function handler(req, res) {
   const symbols = parseSymbols(req.query.symbols || req.query.symbol);
   const refresh = String(req.query.refresh || "false") === "true";
@@ -11,6 +13,7 @@ export default async function handler(req, res) {
     return res.status(400).json({
       error: "MISSING_FUNDAMENTAL_SYMBOLS",
       message: "Passa symbol=AAPL oppure symbols=AAPL,MSFT.",
+      implementation: IMPLEMENTATION_VERSION,
       fetched_at: new Date().toISOString()
     });
   }
@@ -44,6 +47,7 @@ export default async function handler(req, res) {
     const records = await getFundamentalsForTickers(symbols);
 
     return res.status(200).json({
+      implementation: IMPLEMENTATION_VERSION,
       data: {
         symbols,
         refresh,
@@ -63,6 +67,7 @@ export default async function handler(req, res) {
     return res.status(500).json({
       error: "FUNDAMENTALS_DB_FAILED",
       message: error.message,
+      implementation: IMPLEMENTATION_VERSION,
       fetched_at: new Date().toISOString()
     });
   }
