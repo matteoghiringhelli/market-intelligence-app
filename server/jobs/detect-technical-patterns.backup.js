@@ -1,7 +1,6 @@
 import { getHistoricalPricesFromDb } from "../lib/market-data-repository.js";
 import { computeTechnicalPatternsFromPriceHistory } from "../lib/technical-pattern-engine.js";
 import { upsertTechnicalPatterns } from "../lib/technical-patterns-repository.js";
-import { getUniverseSymbols } from "../lib/market-universe-repository.js";
 
 const DEFAULT_SYMBOLS = ["AAPL", "MSFT", "JPM", "NVDA", "AMZN"];
 
@@ -17,19 +16,8 @@ export default async function handler(req, res) {
   }
 
   const startedAt = new Date().toISOString();
-  const symbolResolution = await resolveRequestedSymbols(req);
-  const symbols = symbolResolution.symbols;
+  const symbols = parseSymbols(req.query.symbols);
   const limit = parseLimit(req.query.limit);
-
-  if (!symbols.length) {
-    return res.status(400).json({
-      error: "NO_SYMBOLS_TO_PROCESS",
-      message:
-        "Nessun ticker da processare. Se usi symbols=all, verifica che securities_universe sia popolata e che il batch contenga ticker equity semplici.",
-      symbol_resolution: symbolResolution,
-      fetched_at: new Date().toISOString()
-    });
-  }
 
   const results = [];
 
@@ -48,7 +36,7 @@ export default async function handler(req, res) {
           patterns_detected: 0,
           upserted_patterns: 0,
           message:
-            "Nessun dato storico trovato in Supabase. Esegui prima daily-history-update per questo ticker."
+            "Nessun dato storico trovato in Supabase. Esegui prima daily-history-update."
         });
 
         continue;
@@ -81,7 +69,6 @@ export default async function handler(req, res) {
       mode: "supabase-persistent",
       started_at: startedAt,
       finished_at: new Date().toISOString(),
-      symbol_resolution: symbolResolution,
       symbols,
       limit,
       summary: {
@@ -101,8 +88,7 @@ export default async function handler(req, res) {
       error: "DETECT_TECHNICAL_PATTERNS_FAILED",
       message: error.message,
       started_at: startedAt,
-      finished_at: new Date().toISOString(),
-      symbol_resolution: symbolResolution
+      finished_at: new Date().toISOString()
     });
   }
 }
@@ -138,40 +124,6 @@ function verifyCronAuthorization(req) {
   };
 }
 
-async function resolveRequestedSymbols(req) {
-  const symbolsQuery = req.query.symbols ? String(req.query.symbols).trim() : "";
-  const offset = parseOffset(req.query.offset);
-  const batchSize = parseBatchSize(req.query.batchSize);
-
-  if (symbolsQuery.toLowerCase() === "all") {
-    const universeRows = await getUniverseSymbols({
-      limit: batchSize,
-      offset
-    });
-
-    const symbols = universeRows
-      .map((row) => String(row.ticker || "").trim().toUpperCase())
-      .filter(Boolean)
-      .filter(isSupportedTechnicalPatternTicker);
-
-    return {
-      mode: "universe-batch",
-      source: "securities_universe",
-      offset,
-      batch_size: batchSize,
-      symbols
-    };
-  }
-
-  return {
-    mode: symbolsQuery ? "explicit-symbols" : "default-symbols",
-    source: symbolsQuery ? "query" : "default",
-    offset: null,
-    batch_size: null,
-    symbols: parseSymbols(symbolsQuery)
-  };
-}
-
 function parseSymbols(symbolsQuery) {
   if (!symbolsQuery) {
     return DEFAULT_SYMBOLS;
@@ -180,28 +132,7 @@ function parseSymbols(symbolsQuery) {
   return String(symbolsQuery)
     .split(",")
     .map((symbol) => symbol.trim().toUpperCase())
-    .filter(Boolean)
-    .filter(isSupportedTechnicalPatternTicker);
-}
-
-function parseBatchSize(batchSizeQuery) {
-  const parsedBatchSize = Number(batchSizeQuery || 25);
-
-  if (Number.isNaN(parsedBatchSize) || parsedBatchSize < 1) {
-    return 25;
-  }
-
-  return Math.min(parsedBatchSize, 100);
-}
-
-function parseOffset(offsetQuery) {
-  const parsedOffset = Number(offsetQuery || 0);
-
-  if (Number.isNaN(parsedOffset) || parsedOffset < 0) {
-    return 0;
-  }
-
-  return Math.floor(parsedOffset);
+    .filter(Boolean);
 }
 
 function parseLimit(limitQuery) {
@@ -212,24 +143,4 @@ function parseLimit(limitQuery) {
   }
 
   return Math.min(parsedLimit, 1000);
-}
-
-function isSupportedTechnicalPatternTicker(symbol) {
-  const value = String(symbol || "").trim().toUpperCase();
-
-  if (!value) return false;
-  if (value.includes(" ")) return false;
-  if (value.includes(".")) return false;
-  if (value.includes("$")) return false;
-  if (value.includes("^")) return false;
-  if (value.includes("/")) return false;
-  if (value.length > 8) return false;
-
-  if (value.endsWith("W")) return false;
-  if (value.endsWith("WS")) return false;
-  if (value.endsWith("WT")) return false;
-  if (value.endsWith("U")) return false;
-  if (value.endsWith("R")) return false;
-
-  return /^[A-Z][A-Z0-9-]*$/.test(value);
 }
