@@ -1,4 +1,5 @@
 import "./style.css";
+import "./mobile-app-shell.css";
 import { renderDisclaimerBanner } from "./components/disclaimer-banner.js";
 import { renderAppNav } from "./components/app-nav.js";
 import { renderHomeOverviewPage } from "./pages/home-overview.js";

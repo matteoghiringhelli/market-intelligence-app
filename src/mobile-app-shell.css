@@ -1,0 +1,651 @@
+/* =========================================================
+   MARKET INTELLIGENCE APP — IPHONE APP SHELL V1
+   Mobile-first, card-first, app-like UX
+   ========================================================= */
+
+:root {
+  --app-bg: #f8fafc;
+  --app-surface: rgba(255, 255, 255, 0.92);
+  --app-surface-solid: #ffffff;
+  --app-border: rgba(148, 163, 184, 0.26);
+  --app-border-strong: rgba(100, 116, 139, 0.36);
+  --app-text: #0f172a;
+  --app-muted: #64748b;
+  --app-primary: #2563eb;
+  --app-primary-soft: #dbeafe;
+  --app-success: #16a34a;
+  --app-warning: #f59e0b;
+  --app-danger: #dc2626;
+  --app-radius-xl: 28px;
+  --app-radius-lg: 22px;
+  --app-radius-md: 16px;
+  --app-shadow-card: 0 16px 36px rgba(15, 23, 42, 0.08);
+  --app-shadow-soft: 0 8px 22px rgba(15, 23, 42, 0.06);
+  --app-bottom-nav-height: 76px;
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --app-safe-top: env(safe-area-inset-top, 0px);
+}
+
+/* ---------- Global mobile reset ---------- */
+
+html {
+  min-height: 100%;
+  background: var(--app-bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 32%),
+    radial-gradient(circle at top right, rgba(22, 163, 74, 0.08), transparent 28%),
+    var(--app-bg);
+  color: var(--app-text);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "SF Pro Display",
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* ---------- App container ---------- */
+
+#app,
+.app,
+.app-shell,
+main {
+  width: min(100%, 860px);
+  margin: 0 auto;
+}
+
+#app,
+.app-shell {
+  min-height: 100dvh;
+  padding:
+    calc(12px + var(--app-safe-top))
+    14px
+    calc(var(--app-bottom-nav-height) + var(--app-safe-bottom) + 22px);
+  box-sizing: border-box;
+}
+
+/* ---------- Native-like header ---------- */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  margin: -12px -14px 14px;
+  padding:
+    calc(12px + var(--app-safe-top))
+    16px
+    12px;
+  background: rgba(248, 250, 252, 0.86);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.72);
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: clamp(28px, 8vw, 38px);
+  line-height: 0.95;
+  letter-spacing: -0.045em;
+  font-weight: 800;
+}
+
+.app-header .subtitle,
+.subtitle {
+  max-width: 62ch;
+  margin: 8px 0 0;
+  color: var(--app-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--app-primary);
+  font-size: 11px;
+  line-height: 1.1;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+/* ---------- Card-first page panels ---------- */
+
+.panel,
+.detail-section,
+.note-box,
+.audit-box,
+.description-box,
+.dashboard-search-panel,
+.top-signal-card,
+.daily-history-card,
+.disclosure-card,
+.official-pdf-cache-panel,
+.official-house-filings-section,
+.official-pdf-parser-result,
+.parsed-pdf-transaction-card {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-xl);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-soft);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.panel {
+  padding: 16px;
+  margin: 12px 0;
+}
+
+.detail-section,
+.note-box,
+.audit-box,
+.description-box {
+  padding: 14px;
+  margin: 12px 0;
+}
+
+.panel-header,
+.real-data-section-header,
+.top-signal-card__header,
+.daily-history-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.panel-header h2,
+.detail-section h3,
+.real-data-section-header h3,
+.top-signal-card h3 {
+  margin: 0;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.panel-header p,
+.real-data-section-header p,
+.muted-text {
+  color: var(--app-muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* ---------- One primary action principle ---------- */
+
+.button,
+.secondary-button,
+.symbol-button,
+.dashboard-search-result,
+.official-pdf-parse-button {
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 11px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.button {
+  background: var(--app-primary);
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+}
+
+.secondary-button {
+  background: #ffffff;
+  color: var(--app-text);
+  border-color: var(--app-border-strong);
+}
+
+.button:disabled,
+.secondary-button:disabled,
+.symbol-button:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.peer-actions-row,
+.selector-section,
+.symbol-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.peer-actions-row {
+  margin: 14px 0;
+}
+
+.symbol-button {
+  background: #ffffff;
+  color: var(--app-text);
+  border-color: var(--app-border);
+}
+
+.symbol-button--active {
+  background: var(--app-primary);
+  color: #ffffff;
+  border-color: var(--app-primary);
+}
+
+/* ---------- Inputs ---------- */
+
+.manual-operation-input,
+input[type="search"],
+input[type="text"],
+select,
+textarea {
+  width: 100%;
+  min-height: 48px;
+  box-sizing: border-box;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 18px;
+  padding: 12px 14px;
+  background: #ffffff;
+  color: var(--app-text);
+  outline: none;
+}
+
+.manual-operation-input:focus,
+input[type="search"]:focus,
+input[type="text"]:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.selector-label,
+.metric-label {
+  margin: 0 0 6px;
+  color: var(--app-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* ---------- Dashboard top cards ---------- */
+
+.top-signals-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.top-signal-card {
+  padding: 16px;
+  box-shadow: var(--app-shadow-card);
+}
+
+.top-score-box {
+  display: grid;
+  gap: 5px;
+  justify-items: end;
+  text-align: right;
+}
+
+.top-score-box strong {
+  color: var(--app-success);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.why-top10-box,
+.signal-reasons-box,
+.embedded-peer-comparison {
+  margin-top: 14px;
+}
+
+.why-top10-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.why-top10-grid > div {
+  border: 1px solid rgba(187, 247, 208, 0.9);
+  border-radius: 18px;
+  padding: 12px;
+  background: #f0fdf4;
+}
+
+/* ---------- Badges ---------- */
+
+.quality-badge,
+.mini-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.quality-badge--ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.quality-badge--neutral {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.quality-badge--warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.quality-badge--danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.mini-badge {
+  margin-left: 6px;
+  background: #dcfce7;
+  color: #166534;
+}
+
+/* ---------- Tables: mobile containment ---------- */
+
+.history-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 18px;
+  border: 1px solid var(--app-border);
+  background: #ffffff;
+}
+
+.history-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.history-table th,
+.history-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.history-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.peer-row-base {
+  background: #f0fdf4;
+}
+
+/* ---------- Search results ---------- */
+
+.dashboard-search-results-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.dashboard-search-result {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border-color: var(--app-border);
+  background: #ffffff;
+  color: var(--app-text);
+  text-align: left;
+  box-shadow: none;
+}
+
+.dashboard-search-result strong {
+  font-size: 16px;
+}
+
+.dashboard-search-result span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--app-muted);
+}
+
+.dashboard-search-result small {
+  color: var(--app-primary);
+  font-weight: 800;
+}
+
+/* ---------- Bottom navigation iPhone-like ---------- 
+   Works with common nav class names and keeps desktop safe.
+*/
+
+.bottom-nav,
+.app-bottom-nav,
+.tab-bar,
+.mobile-tab-bar,
+nav[aria-label="Primary"],
+nav.primary-nav {
+  position: fixed;
+  left: 50%;
+  bottom: calc(10px + var(--app-safe-bottom));
+  z-index: 60;
+  width: min(440px, calc(100vw - 20px));
+  min-height: 62px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+
+.bottom-nav a,
+.bottom-nav button,
+.app-bottom-nav a,
+.app-bottom-nav button,
+.tab-bar a,
+.tab-bar button,
+.mobile-tab-bar a,
+.mobile-tab-bar button,
+nav[aria-label="Primary"] a,
+nav[aria-label="Primary"] button,
+nav.primary-nav a,
+nav.primary-nav button {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  color: var(--app-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.bottom-nav .active,
+.bottom-nav [aria-current="page"],
+.app-bottom-nav .active,
+.app-bottom-nav [aria-current="page"],
+.tab-bar .active,
+.tab-bar [aria-current="page"],
+.mobile-tab-bar .active,
+.mobile-tab-bar [aria-current="page"],
+nav[aria-label="Primary"] .active,
+nav[aria-label="Primary"] [aria-current="page"],
+nav.primary-nav .active,
+nav.primary-nav [aria-current="page"] {
+  background: var(--app-primary-soft);
+  color: var(--app-primary);
+}
+
+/* ---------- Mobile-specific refinements ---------- */
+
+@media (max-width: 700px) {
+  #app,
+  .app-shell {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .panel {
+    padding: 14px;
+    border-radius: 26px;
+  }
+
+  .panel-header,
+  .real-data-section-header,
+  .top-signal-card__header,
+  .daily-history-card__header {
+    flex-direction: column;
+  }
+
+  .top-score-box {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .peer-actions-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .peer-actions-row .button,
+  .peer-actions-row .secondary-button {
+    width: 100%;
+  }
+
+  .symbol-selector {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .symbol-selector .symbol-button {
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .dashboard-search-result {
+    grid-template-columns: 1fr;
+  }
+
+  .history-table {
+    min-width: 760px;
+  }
+}
+
+/* ---------- Desktop containment: still app-like ---------- */
+
+@media (min-width: 900px) {
+  #app,
+  .app-shell {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .panel {
+    padding: 20px;
+  }
+}
+
+/* =========================================================
+   MARKET INTELLIGENCE — MOBILE METRIC FEEL
+   ========================================================= */
+
+.peer-fundamentals-note {
+  margin-top: 12px;
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.peer-mini-table td:nth-child(2),
+.peer-mini-table td:nth-child(3),
+.peer-mini-table td:nth-child(4),
+.peer-mini-table td:nth-child(5),
+.peer-mini-table td:nth-child(6),
+.peer-mini-table td:nth-child(7) {
+  font-variant-numeric: tabular-nums;
+}
+
+.top-signals-intro strong,
+.note-box strong,
+.audit-box strong {
+  color: var(--app-text);
+}
+
+.description-box {
+  background: rgba(248, 250, 252, 0.88);
+}
+
+.signal-reasons-box li + li {
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  padding-top: 10px;
+}
+
+@media (max-width: 700px) {
+  .top-signal-card {
+    padding: 15px;
+  }
+
+  .why-top10-box,
+  .signal-reasons-box,
+  .embedded-peer-comparison,
+  .audit-box,
+  .note-box,
+  .description-box {
+    border-radius: 20px;
+  }
+}

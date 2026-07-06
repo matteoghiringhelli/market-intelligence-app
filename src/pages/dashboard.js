@@ -9,22 +9,22 @@ let dashboardSearchQuery = "";
 let dashboardSearchResults = [];
 let dashboardTopSignals = [];
 let dashboardPeerByTicker = {};
-let dashboardStatus = "Caricamento Top 10 Bullish Study Score...";
+let dashboardStatus = "Caricamento Focus rialzista...";
 let dashboardInitialLoadDone = false;
 
-export function renderDashboard() {
+export function renderOggi() {
   if (!dashboardInitialLoadDone) {
     dashboardInitialLoadDone = true;
-    setTimeout(() => loadDashboardTopSignals(false), 0);
+    setTimeout(() => loadOggiTopSignals(false), 0);
   }
 
   return `
     <header class="app-header">
       <div>
-        <p class="eyebrow">Educational Market Intelligence</p>
-        <h1>Dashboard</h1>
+        <p class="eyebrow">Market Study</p>
+        <h1>Oggi</h1>
         <p class="subtitle">
-          La Dashboard non mostra tutto l'universo Nasdaq/NYSE: seleziona i 10 titoli
+          La Oggi non mostra tutto l'universo Nasdaq/NYSE: seleziona i 10 titoli
           con più condizioni tecniche che la teoria interpreta come coerenti con momentum
           o trend rialzista, con finalità esclusivamente istruttiva.
         </p>
@@ -34,29 +34,29 @@ export function renderDashboard() {
     <section class="panel">
       <div class="panel-header">
         <div>
-          <h2>Market Study Focus</h2>
+          <h2>Focus operativo</h2>
           <p>
             Cerca qualunque titolo dell'universo Nasdaq/NYSE oppure studia la selezione
-            dei Top 10 Bullish Study Score. Non sono raccomandazioni operative.
+            dei Focus rialzista. Non sono raccomandazioni operative.
           </p>
         </div>
       </div>
 
       <section class="dashboard-search-panel">
         <label>
-          <span class="selector-label">Cerca ticker o nome società</span>
+          <span class="selector-label">Cerca titolo</span>
           <input
             id="dashboard-security-search"
             class="manual-operation-input"
             type="search"
             placeholder="Esempio: AAPL, Apple, Tesla, JPM..."
             value="${escapeHtmlAttribute(dashboardSearchQuery)}"
-            oninput="searchDashboardUniverse(this.value)"
+            oninput="searchOggiUniverse(this.value)"
           />
         </label>
 
         <div id="dashboard-search-results">
-          ${renderDashboardSearchResults()}
+          ${renderOggiSearchResults()}
         </div>
       </section>
 
@@ -64,17 +64,17 @@ export function renderDashboard() {
         <button
           class="button"
           type="button"
-          onclick="refreshDashboardUniverseFromUi()"
+          onclick="refreshOggiUniverseFromUi()"
         >
-          Aggiorna universo Nasdaq/NYSE
+          Aggiorna universo
         </button>
 
         <button
           class="secondary-button"
           type="button"
-          onclick="loadDashboardTopSignals(true)"
+          onclick="loadOggiTopSignals(true)"
         >
-          Ricalcola Top 10 segnali
+          Aggiorna Focus
         </button>
       </section>
 
@@ -89,7 +89,7 @@ export function renderDashboard() {
   `;
 }
 
-window.searchDashboardUniverse = async function searchDashboardUniverse(query) {
+window.searchOggiUniverse = async function searchOggiUniverse(query) {
   dashboardSearchQuery = query;
 
   const resultsEl = document.querySelector("#dashboard-search-results");
@@ -100,14 +100,14 @@ window.searchDashboardUniverse = async function searchDashboardUniverse(query) {
 
   if (!query || query.trim().length < 2) {
     dashboardSearchResults = [];
-    resultsEl.innerHTML = renderDashboardSearchResults();
+    resultsEl.innerHTML = renderOggiSearchResults();
     return;
   }
 
   try {
     const payload = await searchMarketUniverse(query, 20);
     dashboardSearchResults = payload?.data?.records || [];
-    resultsEl.innerHTML = renderDashboardSearchResults();
+    resultsEl.innerHTML = renderOggiSearchResults();
   } catch (error) {
     resultsEl.innerHTML = `
       <section class="audit-box">
@@ -117,7 +117,7 @@ window.searchDashboardUniverse = async function searchDashboardUniverse(query) {
   }
 };
 
-window.refreshDashboardUniverseFromUi = async function refreshDashboardUniverseFromUi() {
+window.refreshOggiUniverseFromUi = async function refreshOggiUniverseFromUi() {
   const statusEl = document.querySelector("#dashboard-status");
 
   if (statusEl) {
@@ -144,14 +144,14 @@ window.refreshDashboardUniverseFromUi = async function refreshDashboardUniverseF
   }
 };
 
-window.loadDashboardTopSignals = async function loadDashboardTopSignals(refresh = false) {
+window.loadOggiTopSignals = async function loadOggiTopSignals(refresh = false) {
   const statusEl = document.querySelector("#dashboard-status");
   const contentEl = document.querySelector("#dashboard-top-signals");
 
   if (statusEl) {
     statusEl.innerHTML = refresh
       ? "Ricalcolo Bullish Study Score da pattern tecnici..."
-      : "Lettura Top 10 Bullish Study Score da Supabase...";
+      : "Lettura Focus rialzista da Supabase...";
   }
 
   try {
@@ -181,7 +181,7 @@ window.loadDashboardTopSignals = async function loadDashboardTopSignals(refresh 
   }
 };
 
-window.openDashboardSecurityDetail = function openDashboardSecurityDetail(symbol) {
+window.openOggiSecurityDetail = function openOggiSecurityDetail(symbol) {
   const normalizedSymbol = String(symbol || "").trim().toUpperCase();
 
   if (!normalizedSymbol) {
@@ -217,7 +217,7 @@ async function loadPeersForTopSignals() {
   }
 }
 
-function renderDashboardSearchResults() {
+function renderOggiSearchResults() {
   if (!dashboardSearchResults.length) {
     return "";
   }
@@ -228,7 +228,7 @@ function renderDashboardSearchResults() {
         <button
           class="dashboard-search-result"
           type="button"
-          onclick="openDashboardSecurityDetail('${escapeJsString(row.ticker)}')"
+          onclick="openOggiSecurityDetail('${escapeJsString(row.ticker)}')"
         >
           <strong>${escapeHtml(row.ticker)}</strong>
           <span>${escapeHtml(row.company_name || "n/d")}</span>
@@ -308,7 +308,7 @@ function renderTopSignalCard(row, rank) {
       <section class="embedded-peer-comparison">
         <div class="embedded-peer-comparison__header">
           <div>
-            <h4>Peer Compare sintetico</h4>
+            <h4>Confronto peer</h4>
             <p class="muted-text">
               Confronto diretto tra titolo base e peer disponibili in cache.
             </p>
@@ -329,9 +329,9 @@ function renderTopSignalCard(row, rank) {
       <button
         class="button"
         type="button"
-        onclick="openDashboardSecurityDetail('${escapeJsString(row.ticker)}')"
+        onclick="openOggiSecurityDetail('${escapeJsString(row.ticker)}')"
       >
-        Apri scheda titolo
+        Apri titolo
       </button>
     </article>
   `;
@@ -342,7 +342,7 @@ function renderWhyInTop10(row, reasons) {
 
   return `
     <section class="why-top10-box">
-      <h4>Perché è nei Top 10</h4>
+      <h4>Perché è rilevante</h4>
 
       <div class="why-top10-grid">
         <div>
@@ -414,7 +414,7 @@ function renderSignalReasons(reasons) {
 
   return `
     <section class="signal-reasons-box">
-      <h4>Lettura teorica dei segnali</h4>
+      <h4>Lettura teorica</h4>
       <ul>
         ${items}
       </ul>
