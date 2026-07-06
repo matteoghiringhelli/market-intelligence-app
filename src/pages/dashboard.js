@@ -444,11 +444,11 @@ function renderPeerComparisonMini(peerRows, baseTicker) {
             <strong>${escapeHtml(peer.ticker)}</strong>
             ${isBase ? `<span class="mini-badge">Base</span>` : ""}
           </td>
-          <td>${formatMarketCap(fundamentals.market_cap)}</td>
-          <td>${formatNumber(fundamentals.trailing_pe)}</td>
-          <td>${formatPercent(fundamentals.profit_margin)}</td>
-          <td>${formatPercent(fundamentals.return_on_equity)}</td>
-          <td>${formatNumber(fundamentals.debt_to_equity)}</td>
+          <td>${formatNumber(fundamentals.latest_close ?? peer.latest_close)}</td>
+          <td>${formatPercent(fundamentals.return_260d)}</td>
+          <td>${formatPercent(fundamentals.volatility_60d)}</td>
+          <td>${formatPercent(fundamentals.distance_from_52w_high)}</td>
+          <td>${formatPercent(fundamentals.price_position_52w)}</td>
           <td>${formatValue(fundamentals.completeness_score)}%</td>
         </tr>
       `;
@@ -461,11 +461,11 @@ function renderPeerComparisonMini(peerRows, baseTicker) {
         <thead>
           <tr>
             <th>Ticker</th>
-            <th>Mkt Cap</th>
-            <th>P/E</th>
-            <th>Profit Margin</th>
-            <th>ROE</th>
-            <th>D/E</th>
+            <th>Close</th>
+            <th>Return 260d</th>
+            <th>Vol. 60d</th>
+            <th>Dist. 52w High</th>
+            <th>Pos. 52w</th>
             <th>Comp.</th>
           </tr>
         </thead>
@@ -478,9 +478,9 @@ function renderPeerComparisonMini(peerRows, baseTicker) {
     <section class="note-box peer-fundamentals-note">
       <p>
         <strong>Lettura:</strong>
-        questa tabella facilita il confronto diretto fra titolo base e peer su dimensione,
-        valutazione, redditività e leva. Le metriche sono descrittive e possono essere
-        incomplete o distorte da eventi non ricorrenti.
+        in questa V1 il confronto usa fundamentals-lite derivati da price_history:
+        rendimento, volatilità e posizione nel range a 52 settimane. Non sono ancora
+        fondamentali contabili come P/E, ROE o margini.
       </p>
     </section>
   `;

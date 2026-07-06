@@ -85,6 +85,15 @@ export default async function handler(req, res) {
               current_ratio: fundamental.current_ratio,
               revenue_growth: fundamental.revenue_growth,
               gross_margins: fundamental.gross_margins,
+
+              latest_close: fundamental.latest_close,
+              return_260d: fundamental.return_260d,
+              volatility_60d: fundamental.volatility_60d,
+              distance_from_52w_high: fundamental.distance_from_52w_high,
+              distance_from_52w_low: fundamental.distance_from_52w_low,
+              price_position_52w: fundamental.price_position_52w,
+              records_count: fundamental.records_count,
+
               completeness_score: fundamental.completeness_score,
               fetched_at: fundamental.fetched_at,
               source_id: fundamental.source_id
@@ -110,7 +119,7 @@ export default async function handler(req, res) {
         completeness_score: calculateCompleteness(rows)
       },
       methodology:
-        "Peer set persistito in Supabase da FMP Stock Peer Comparison API; prezzi/storico e fundamentals sintetici letti da Supabase serving/cache.",
+        "Peer set persistito in Supabase; prezzi, storico e fundamentals-lite letti da Supabase.",
       disclaimer:
         "Confronto peer descrittivo. Non implica ranking, raccomandazione o valutazione buy/sell."
     });

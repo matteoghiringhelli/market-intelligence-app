@@ -1,6 +1,5 @@
-import { fetchYahooFundamentals } from "../providers/yahoo-fundamentals.js";
 import {
-  upsertFundamentalSnapshot,
+  computeAndUpsertFundamentalsLite,
   getFundamentalsForTickers
 } from "../lib/fundamentals-repository.js";
 
@@ -17,37 +16,28 @@ export default async function handler(req, res) {
   }
 
   try {
-    const fetchResults = [];
+    const computeResults = [];
 
     if (refresh) {
       for (const symbol of symbols) {
-        const result = await fetchYahooFundamentals(symbol);
+        try {
+          const result = await computeAndUpsertFundamentalsLite(symbol);
 
-        if (!result.ok) {
-          fetchResults.push({
+          computeResults.push({
+            symbol,
+            ok: Boolean(result.record),
+            upserted: result.upserted,
+            message: result.message
+          });
+        } catch (error) {
+          computeResults.push({
             symbol,
             ok: false,
-            status: result.status,
-            error: result.payload?.error || "UNKNOWN_ERROR",
-            message: result.payload?.message || "Fundamentals fetch failed."
+            upserted: 0,
+            error: "FUNDAMENTALS_LITE_COMPUTE_FAILED",
+            message: error.message
           });
-
-          continue;
         }
-
-        const record = result.payload?.data?.record;
-
-        if (record) {
-          await upsertFundamentalSnapshot(record);
-        }
-
-        fetchResults.push({
-          symbol,
-          ok: true,
-          status: 200,
-          completeness_score: record?.completeness_score || 0,
-          message: "Fundamentals persisted to Supabase."
-        });
       }
     }
 
@@ -59,15 +49,15 @@ export default async function handler(req, res) {
         refresh,
         records_count: records.length,
         records,
-        fetch_results: fetchResults
+        compute_results: computeResults
       },
       data_quality: {
-        source_id: "yahoo_quote_summary",
+        source_id: "internal_price_history_fundamentals_lite",
         fetched_at: new Date().toISOString(),
         completeness_score: calculateAverageCompleteness(records)
       },
       disclaimer:
-        "Fondamentali sintetici descrittivi. Metriche usate per confronto educativo tra peer; nessuna raccomandazione finanziaria."
+        "Fundamentals-lite derivati da price_history interno: metriche descrittive di prezzo, trend, volatilità e posizione nel range 52 settimane. Non sono fondamentali contabili e non costituiscono raccomandazione finanziaria."
     });
   } catch (error) {
     return res.status(500).json({
