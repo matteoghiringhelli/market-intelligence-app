@@ -14,7 +14,7 @@ export async function upsertSecuritiesUniverse(records) {
     exchange: sanitizeText(record.exchange),
     exchange_short_name: sanitizeText(record.exchange_short_name),
     security_type: sanitizeText(record.security_type),
-    source_id: sanitizeText(record.source_id || "nasdaq_trader_symbol_directory"),
+    source_id: sanitizeText(record.source_id || "financial_modeling_prep"),
     fetched_at: record.fetched_at || now,
     raw_payload: sanitizeJson(record.raw_payload || record),
     is_active: true,
@@ -82,16 +82,14 @@ export async function searchUniverseSecurities({
 }
 
 export async function recomputeBullishSignalScores({
-  limit = 5000
+  limit = 2000
 } = {}) {
   const supabase = getSupabaseAdminClient();
   const now = new Date().toISOString();
 
   const { data: patterns, error: patternsError } = await supabase
     .from("technical_patterns")
-    .select(
-      "ticker,pattern_name,timeframe,detected_at,computed_at,source_id,trigger_conditions_json,explanation,limitations_note"
-    )
+    .select("ticker,pattern_name,timeframe,detected_at,computed_at,source_id")
     .order("computed_at", { ascending: false })
     .limit(limit);
 
@@ -102,21 +100,17 @@ export async function recomputeBullishSignalScores({
   const { data: universe, error: universeError } = await supabase
     .from("securities_universe")
     .select("ticker,company_name,exchange_short_name")
-    .in("exchange_short_name", ["NASDAQ", "NYSE"])
-    .eq("is_active", true);
+    .in("exchange_short_name", ["NASDAQ", "NYSE"]);
 
   if (universeError) {
     throw new Error(`load securities_universe failed: ${universeError.message}`);
   }
 
-  const universeByTicker = new Map(
-    (universe || []).map((row) => [row.ticker, row])
-  );
-
+  const universeByTicker = new Map((universe || []).map((row) => [row.ticker, row]));
   const scoreByTicker = new Map();
 
   for (const pattern of patterns || []) {
-    const ticker = String(pattern.ticker || "").trim().toUpperCase();
+    const ticker = pattern.ticker;
     const security = universeByTicker.get(ticker);
 
     if (!ticker || !security) {
@@ -144,11 +138,7 @@ export async function recomputeBullishSignalScores({
     current.bullish_score += patternScore.score;
     current.bullish_signal_count += 1;
 
-    if (
-      !current.latest_computed_at ||
-      new Date(pattern.computed_at || 0) >
-        new Date(current.latest_computed_at || 0)
-    ) {
+    if (!current.latest_computed_at || new Date(pattern.computed_at || 0) > new Date(current.latest_computed_at || 0)) {
       current.latest_pattern_name = pattern.pattern_name || null;
       current.latest_detected_at = pattern.detected_at || null;
       current.latest_computed_at = pattern.computed_at || null;
@@ -159,12 +149,8 @@ export async function recomputeBullishSignalScores({
       timeframe: pattern.timeframe,
       detected_at: pattern.detected_at,
       computed_at: pattern.computed_at,
-      explanation: pattern.explanation || null,
       theoretical_reading: patternScore.reason,
-      limitations_note: pattern.limitations_note || null,
-      score: patternScore.score,
-      raw_strength_score:
-        pattern.trigger_conditions_json?.strength_score ?? null
+      score: patternScore.score
     });
 
     scoreByTicker.set(ticker, current);
@@ -179,9 +165,7 @@ export async function recomputeBullishSignalScores({
     latest_pattern_name: row.latest_pattern_name,
     latest_detected_at: row.latest_detected_at,
     latest_computed_at: row.latest_computed_at,
-    reasons: row.reasons
-      .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
-      .slice(0, 6),
+    reasons: row.reasons,
     source_id: "market_signal_score_engine",
     computed_at: now,
     updated_at: now
@@ -202,13 +186,7 @@ export async function recomputeBullishSignalScores({
   return {
     computed: rows.length,
     top: rows
-      .sort((a, b) => {
-        if (b.bullish_score !== a.bullish_score) {
-          return b.bullish_score - a.bullish_score;
-        }
-
-        return b.bullish_signal_count - a.bullish_signal_count;
-      })
+      .sort((a, b) => b.bullish_score - a.bullish_score)
       .slice(0, 10)
   };
 }
@@ -232,66 +210,58 @@ export async function getTopBullishSignals({
 
 function scorePattern(pattern) {
   const name = String(pattern.pattern_name || "").toLowerCase();
-  const trigger = pattern.trigger_conditions_json || {};
-  const rawStrength = Number(trigger.strength_score || 0);
 
-  let baseScore = 0;
-  let reason = null;
-
-  if (name.includes("bullish sma20/sma50 crossover")) {
-    baseScore = 5;
-    reason =
-      "Il crossover rialzista SMA20/SMA50 è normalmente interpretato come potenziale miglioramento della struttura di trend, pur essendo un indicatore ritardato.";
-  } else if (
-    name.includes("sma20 above sma50") ||
-    name.includes("bullish momentum configuration")
-  ) {
-    baseScore = 4;
-    reason =
-      "La SMA20 sopra la SMA50 indica che il prezzo medio recente è più forte della tendenza intermedia, condizione teoricamente coerente con momentum favorevole.";
-  } else if (name.includes("rsi14 supportive bullish momentum")) {
-    baseScore = 3;
-    reason =
-      "RSI14 sopra 50 e sotto 70 è normalmente letto come momentum positivo non ancora in area estrema.";
-  } else if (name.includes("rsi14 recovery from oversold")) {
-    baseScore = 3.5;
-    reason =
-      "Il recupero di RSI14 da area oversold può indicare riduzione della pressione negativa, ma richiede conferme.";
-  } else if (name.includes("positive price move with relative volume")) {
-    baseScore = 2.5;
-    reason =
-      "Un movimento positivo accompagnato da volume superiore alla media può essere letto come più significativo rispetto a un movimento con volume debole.";
-  } else if (name.includes("golden")) {
-    baseScore = 5;
-    reason =
-      "La teoria tecnica interpreta alcune configurazioni di medie mobili rialziste come segnali descrittivi di rafforzamento del trend.";
-  } else if (name.includes("sma") || name.includes("moving average")) {
-    baseScore = 2.5;
-    reason =
-      "Le medie mobili descrivono la relazione tra tendenza recente e tendenza intermedia.";
-  } else if (name.includes("rsi")) {
-    baseScore = 1.5;
-    reason =
-      "RSI descrive il momentum e deve essere letto insieme a trend, prezzo e volume.";
-  } else if (name.includes("volume")) {
-    baseScore = 1.25;
-    reason =
-      "Il volume può rafforzare la lettura descrittiva di un movimento già osservato.";
-  }
-
-  if (baseScore <= 0) {
+  if (name.includes("golden") || (name.includes("sma") && name.includes("bull"))) {
     return {
-      score: 0,
-      reason: null
+      score: 5,
+      reason:
+        "La teoria dell'analisi tecnica interpreta gli incroci rialzisti di medie mobili come possibile rafforzamento del momentum/trend."
     };
   }
 
-  const strengthAdjustment =
-    rawStrength > 0 ? Math.min(rawStrength, 5) * 0.25 : 0;
+  if (name.includes("sma") || name.includes("moving average")) {
+    return {
+      score: 3,
+      reason:
+        "La posizione favorevole di medie mobili brevi rispetto a medie più lunghe viene normalmente letta come momentum recente più forte."
+    };
+  }
+
+  if (name.includes("rsi")) {
+    if (name.includes("oversold") || name.includes("rebound")) {
+      return {
+        score: 2.5,
+        reason:
+          "RSI in recupero da aree deboli può essere letto teoricamente come miglioramento del momentum, ma richiede conferme."
+      };
+    }
+
+    return {
+      score: 1.5,
+      reason:
+        "RSI descrive momentum; letture favorevoli possono supportare un quadro tecnico positivo se coerenti col trend."
+    };
+  }
+
+  if (name.includes("breakout")) {
+    return {
+      score: 4,
+      reason:
+        "Un breakout viene normalmente letto come superamento di un'area precedente di prezzo, ma è soggetto a falsi segnali."
+    };
+  }
+
+  if (name.includes("volume")) {
+    return {
+      score: 1.5,
+      reason:
+        "Volume superiore alla media può rendere più significativo un movimento già osservato."
+    };
+  }
 
   return {
-    score: Math.round((baseScore + strengthAdjustment) * 100) / 100,
-    reason
+    score: 0,
+    reason: null
   };
 }
 
