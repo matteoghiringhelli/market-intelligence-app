@@ -30,7 +30,10 @@ const routeLoaders = {
     import("../server/jobs/daily-history-update.js"),
 
   "jobs/detect-technical-patterns": () =>
-    import("../server/jobs/detect-technical-patterns.js")
+    import("../server/jobs/detect-technical-patterns.js"),
+
+  "jobs/fundamentals-lite-update": () =>
+    import("../server/jobs/fundamentals-lite-update.js"),
 };
 
 export default async function handler(req, res) {
