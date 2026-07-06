@@ -24,8 +24,9 @@ export function renderDashboard() {
         <p class="eyebrow">Educational Market Intelligence</p>
         <h1>Dashboard</h1>
         <p class="subtitle">
-          Dashboard focalizzata sui 10 titoli Nasdaq/NYSE con più condizioni tecniche
-          normalmente interpretate come coerenti con momentum o trend rialzista.
+          La Dashboard non mostra tutto l'universo Nasdaq/NYSE: seleziona i 10 titoli
+          con più condizioni tecniche che la teoria interpreta come coerenti con momentum
+          o trend rialzista, con finalità esclusivamente istruttiva.
         </p>
       </div>
     </header>
@@ -35,8 +36,8 @@ export function renderDashboard() {
         <div>
           <h2>Market Study Focus</h2>
           <p>
-            Cerca qualunque titolo dell'universo Nasdaq/NYSE oppure studia i Top 10
-            per Bullish Study Score. Non sono raccomandazioni operative.
+            Cerca qualunque titolo dell'universo Nasdaq/NYSE oppure studia la selezione
+            dei Top 10 Bullish Study Score. Non sono raccomandazioni operative.
           </p>
         </div>
       </div>
@@ -120,7 +121,7 @@ window.refreshDashboardUniverseFromUi = async function refreshDashboardUniverseF
   const statusEl = document.querySelector("#dashboard-status");
 
   if (statusEl) {
-    statusEl.innerHTML = "Aggiornamento universo Nasdaq/NYSE da provider...";
+    statusEl.innerHTML = "Aggiornamento universo Nasdaq/NYSE da fonte ufficiale NasdaqTrader...";
   }
 
   try {
@@ -180,6 +181,21 @@ window.loadDashboardTopSignals = async function loadDashboardTopSignals(refresh 
   }
 };
 
+window.openDashboardSecurityDetail = function openDashboardSecurityDetail(symbol) {
+  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+
+  if (!normalizedSymbol) {
+    return;
+  }
+
+  if (typeof window.openSecurityDetail === "function") {
+    window.openSecurityDetail(normalizedSymbol);
+    return;
+  }
+
+  window.location.hash = `security/${normalizedSymbol}`;
+};
+
 async function loadPeersForTopSignals() {
   const contentEl = document.querySelector("#dashboard-top-signals");
 
@@ -212,7 +228,7 @@ function renderDashboardSearchResults() {
         <button
           class="dashboard-search-result"
           type="button"
-          onclick="openSecurityDetail('${escapeJsString(row.ticker)}')"
+          onclick="openDashboardSecurityDetail('${escapeJsString(row.ticker)}')"
         >
           <strong>${escapeHtml(row.ticker)}</strong>
           <span>${escapeHtml(row.company_name || "n/d")}</span>
@@ -233,81 +249,172 @@ function renderTopSignals() {
   if (!dashboardTopSignals.length) {
     return `
       <section class="note-box">
-        Nessun Bullish Study Score disponibile. Aggiorna universo, carica storico/pattern
-        a batch e poi clicca “Ricalcola Top 10 segnali”.
+        <strong>Nessun Top 10 disponibile.</strong>
+        <p>
+          Per alimentare questa sezione completa la pipeline:
+          universo Nasdaq/NYSE → storico prezzi → pattern tecnici → ricalcolo Top 10.
+        </p>
       </section>
     `;
   }
 
-  const cards = dashboardTopSignals.map(renderTopSignalCard).join("");
+  const cards = dashboardTopSignals
+    .map((row, index) => renderTopSignalCard(row, index + 1))
+    .join("");
 
   return `
+    <section class="top-signals-intro note-box">
+      <strong>Come leggere questa selezione:</strong>
+      <p>
+        La lista ordina i titoli per numero e intensità di pattern tecnici che la teoria
+        normalmente interpreta come coerenti con momentum o trend rialzista. Non indica
+        cosa comprare, vendere o detenere.
+      </p>
+    </section>
+
     <section class="top-signals-grid">
       ${cards}
     </section>
   `;
 }
 
-function renderTopSignalCard(row) {
+function renderTopSignalCard(row, rank) {
   const peerPayload = dashboardPeerByTicker[row.ticker];
   const peerRows = peerPayload?.data?.rows || [];
+  const reasons = normalizeReasons(row.reasons);
 
   return `
     <article class="top-signal-card">
       <div class="top-signal-card__header">
         <div>
-          <p class="eyebrow">${escapeHtml(row.exchange_short_name || "n/d")}</p>
+          <p class="eyebrow">Rank #${rank} · ${escapeHtml(row.exchange_short_name || "n/d")}</p>
           <h3>${escapeHtml(row.ticker)}</h3>
           <p>${escapeHtml(row.company_name || "n/d")}</p>
         </div>
 
-        <span class="quality-badge quality-badge--ok">
-          Score ${formatNumber(row.bullish_score)}
-        </span>
+        <div class="top-score-box">
+          <span class="quality-badge quality-badge--ok">
+            Bullish Study Score
+          </span>
+          <strong>${formatNumber(row.bullish_score)}</strong>
+          <small>${formatValue(row.bullish_signal_count)} segnali</small>
+        </div>
       </div>
 
-      <section class="description-box">
-        <p><strong>Segnali:</strong> ${formatValue(row.bullish_signal_count)}</p>
-        <p><strong>Ultimo pattern:</strong> ${escapeHtml(row.latest_pattern_name || "n/d")}</p>
-        <p><strong>Computed:</strong> ${formatValue(row.latest_computed_at)}</p>
-      </section>
+      ${renderWhyInTop10(row, reasons)}
 
-      ${renderSignalReasons(row.reasons)}
+      ${renderSignalReasons(reasons)}
 
       <section class="embedded-peer-comparison">
-        <h4>Peer Compare sintetico</h4>
-        ${renderPeerComparisonMini(peerRows)}
+        <div class="embedded-peer-comparison__header">
+          <div>
+            <h4>Peer Compare sintetico</h4>
+            <p class="muted-text">
+              Confronto diretto tra titolo base e peer disponibili in cache.
+            </p>
+          </div>
+        </div>
+
+        ${renderPeerComparisonMini(peerRows, row.ticker)}
       </section>
 
-      <button class="button" type="button" onclick="openSecurityDetail('${escapeJsString(row.ticker)}')">
+      <section class="audit-box">
+        <p>
+          <strong>Nota educativa:</strong>
+          score e pattern descrivono condizioni osservate sui dati storici.
+          Non sono segnali operativi e non prevedono automaticamente movimenti futuri.
+        </p>
+      </section>
+
+      <button
+        class="button"
+        type="button"
+        onclick="openDashboardSecurityDetail('${escapeJsString(row.ticker)}')"
+      >
         Apri scheda titolo
       </button>
     </article>
   `;
 }
 
-function renderSignalReasons(reasons) {
-  const parsedReasons = Array.isArray(reasons) ? reasons : [];
+function renderWhyInTop10(row, reasons) {
+  const strongestReason = reasons[0];
 
-  if (!parsedReasons.length) {
+  return `
+    <section class="why-top10-box">
+      <h4>Perché è nei Top 10</h4>
+
+      <div class="why-top10-grid">
+        <div>
+          <p class="metric-label">Score</p>
+          <strong>${formatNumber(row.bullish_score)}</strong>
+        </div>
+
+        <div>
+          <p class="metric-label">Numero segnali</p>
+          <strong>${formatValue(row.bullish_signal_count)}</strong>
+        </div>
+
+        <div>
+          <p class="metric-label">Ultimo pattern</p>
+          <strong>${escapeHtml(row.latest_pattern_name || "n/d")}</strong>
+        </div>
+      </div>
+
+      ${
+        strongestReason
+          ? `
+            <section class="description-box">
+              <p>
+                <strong>Segnale più rilevante:</strong>
+                ${escapeHtml(strongestReason.pattern_name || "Pattern")}
+              </p>
+              <p>
+                ${escapeHtml(
+                  strongestReason.theoretical_reading ||
+                    strongestReason.explanation ||
+                    "Lettura teorica non disponibile."
+                )}
+              </p>
+            </section>
+          `
+          : ""
+      }
+    </section>
+  `;
+}
+
+function renderSignalReasons(reasons) {
+  if (!reasons.length) {
     return "";
   }
 
-  const items = parsedReasons
-    .slice(0, 3)
+  const items = reasons
+    .slice(0, 4)
     .map((reason) => {
       return `
         <li>
-          <strong>${escapeHtml(reason.pattern_name || "Pattern")}</strong> —
-          ${escapeHtml(reason.theoretical_reading || "lettura teorica non disponibile")}
+          <strong>${escapeHtml(reason.pattern_name || "Pattern")}</strong>
+          <p>
+            ${escapeHtml(
+              reason.theoretical_reading ||
+                reason.explanation ||
+                "Lettura teorica non disponibile."
+            )}
+          </p>
+          ${
+            reason.limitations_note
+              ? `<small>${escapeHtml(reason.limitations_note)}</small>`
+              : ""
+          }
         </li>
       `;
     })
     .join("");
 
   return `
-    <section class="note-box">
-      <p><strong>Lettura teorica:</strong></p>
+    <section class="signal-reasons-box">
+      <h4>Lettura teorica dei segnali</h4>
       <ul>
         ${items}
       </ul>
@@ -315,11 +422,12 @@ function renderSignalReasons(reasons) {
   `;
 }
 
-function renderPeerComparisonMini(peerRows) {
+function renderPeerComparisonMini(peerRows, baseTicker) {
   if (!peerRows.length) {
     return `
       <p class="muted-text">
-        Peer non ancora disponibili in cache. Apri Peer Compare o aggiorna peer per questo titolo.
+        Peer non ancora disponibili in cache. Apri Peer Compare o aggiorna peer
+        per questo titolo.
       </p>
     `;
   }
@@ -327,13 +435,19 @@ function renderPeerComparisonMini(peerRows) {
   const rows = peerRows
     .slice(0, 6)
     .map((peer) => {
+      const isBase = peer.ticker === baseTicker || peer.role === "base";
+
       return `
-        <tr>
-          <td>${escapeHtml(peer.ticker)}</td>
-          <td>${escapeHtml(peer.role)}</td>
+        <tr class="${isBase ? "peer-row-base" : ""}">
+          <td>
+            <strong>${escapeHtml(peer.ticker)}</strong>
+            ${isBase ? `<span class="mini-badge">Base</span>` : ""}
+          </td>
+          <td>${escapeHtml(peer.role || "peer")}</td>
           <td>${formatNumber(peer.latest_close)}</td>
           <td>${formatValue(peer.relative_close_vs_base)}%</td>
           <td>${formatValue(peer.records_count)}</td>
+          <td>${formatValue(peer.average_completeness_score)}%</td>
         </tr>
       `;
     })
@@ -341,7 +455,7 @@ function renderPeerComparisonMini(peerRows) {
 
   return `
     <div class="history-table-wrapper">
-      <table class="history-table">
+      <table class="history-table peer-mini-table">
         <thead>
           <tr>
             <th>Ticker</th>
@@ -349,6 +463,7 @@ function renderPeerComparisonMini(peerRows) {
             <th>Close</th>
             <th>Vs base</th>
             <th>Storico</th>
+            <th>Completezza</th>
           </tr>
         </thead>
         <tbody>
@@ -357,6 +472,23 @@ function renderPeerComparisonMini(peerRows) {
       </table>
     </div>
   `;
+}
+
+function normalizeReasons(reasons) {
+  if (Array.isArray(reasons)) {
+    return reasons;
+  }
+
+  if (typeof reasons === "string") {
+    try {
+      const parsed = JSON.parse(reasons);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
 }
 
 function formatValue(value) {
