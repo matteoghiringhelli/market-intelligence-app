@@ -2,303 +2,240 @@ export function computeTechnicalPatternsFromPriceHistory({
   ticker,
   records
 }) {
-  const sortedRecords = normalizeAndSortRecords(records);
+  const normalizedTicker = String(ticker || "").trim().toUpperCase();
+  const sortedRecords = normalizePriceRows(records);
 
-  if (sortedRecords.length < 20) {
-    return [
-      buildInsufficientDataPattern({
-        ticker,
-        records: sortedRecords,
-        requiredRecords: 20
-      })
-    ];
+  if (!normalizedTicker || sortedRecords.length < 50) {
+    return [];
   }
+
+  const latest = sortedRecords[sortedRecords.length - 1];
+  const previous = sortedRecords[sortedRecords.length - 2];
+
+  const enriched = sortedRecords.map((row, index) => {
+    return {
+      ...row,
+      sma20: calculateSma(sortedRecords, index, 20),
+      sma50: calculateSma(sortedRecords, index, 50),
+      rsi14: calculateRsi(sortedRecords, index, 14),
+      avgVolume20: calculateAverageVolume(sortedRecords, index, 20)
+    };
+  });
+
+  const latestEnriched = enriched[enriched.length - 1];
+  const previousEnriched = enriched[enriched.length - 2];
 
   const patterns = [];
 
-  const smaPattern = detectSma20Sma50Pattern({
-    ticker,
-    records: sortedRecords
-  });
+  const windowStart = sortedRecords[Math.max(0, sortedRecords.length - 260)]?.date || sortedRecords[0]?.date;
+  const windowEnd = latest.date;
 
-  if (smaPattern) {
-    patterns.push(smaPattern);
-  }
-
-  const rsiPattern = detectRsi14Pattern({
-    ticker,
-    records: sortedRecords
-  });
-
-  if (rsiPattern) {
-    patterns.push(rsiPattern);
-  }
-
-  const volumePattern = detectRelativeVolumePattern({
-    ticker,
-    records: sortedRecords
-  });
-
-  if (volumePattern) {
-    patterns.push(volumePattern);
-  }
-
-  if (!patterns.length) {
-    patterns.push({
-      ticker,
-      pattern_name: "Nessun pattern tecnico descrittivo rilevante",
-      timeframe: `Daily, ultimi ${sortedRecords.length} record disponibili`,
-      explanation:
-        "Nel periodo osservato non sono state rilevate condizioni descrittive tra quelle attualmente implementate.",
-      trigger_conditions_json: {
-        implemented_checks: [
-          "SMA20/SMA50",
-          "RSI14",
-          "Volume relativo 20 giorni"
-        ],
-        result: "no_pattern_detected"
+  if (
+    latestEnriched.sma20 !== null &&
+    latestEnriched.sma50 !== null &&
+    latestEnriched.sma20 > latestEnriched.sma50
+  ) {
+    patterns.push(buildPattern({
+      ticker: normalizedTicker,
+      patternName: "SMA20 Above SMA50 — Bullish Momentum Configuration",
+      detectedAt: latest.date,
+      windowStart,
+      windowEnd,
+      triggerConditions: {
+        sma20: latestEnriched.sma20,
+        sma50: latestEnriched.sma50,
+        condition: "SMA20 > SMA50"
       },
-      detected_at: sortedRecords[sortedRecords.length - 1]?.date || null,
-      window_start: sortedRecords[0]?.date || null,
-      window_end: sortedRecords[sortedRecords.length - 1]?.date || null,
-      limitations_note:
-        "L'assenza di pattern rilevati non implica alcuna indicazione operativa. Il risultato è puramente descrittivo e dipende dalle regole implementate.",
-      source_id: "financial_modeling_prep"
-    });
+      explanation:
+        "La SMA20 superiore alla SMA50 viene normalmente letta come una configurazione in cui il prezzo medio recente è più forte della tendenza intermedia.",
+      theoreticalReading:
+        "Nella teoria dell'analisi tecnica, questa condizione è coerente con momentum recente favorevole rispetto al trend intermedio.",
+      limitations:
+        "Le medie mobili sono indicatori ritardati; la configurazione non predice automaticamente la direzione futura e può generare falsi segnali in mercati laterali.",
+      strength: calculateSmaSpreadStrength(latestEnriched.sma20, latestEnriched.sma50)
+    }));
   }
 
-  return patterns;
+  if (
+    latestEnriched.sma20 !== null &&
+    latestEnriched.sma50 !== null &&
+    previousEnriched.sma20 !== null &&
+    previousEnriched.sma50 !== null &&
+    latestEnriched.sma20 > latestEnriched.sma50 &&
+    previousEnriched.sma20 <= previousEnriched.sma50
+  ) {
+    patterns.push(buildPattern({
+      ticker: normalizedTicker,
+      patternName: "Bullish SMA20/SMA50 Crossover",
+      detectedAt: latest.date,
+      windowStart,
+      windowEnd,
+      triggerConditions: {
+        previous_sma20: previousEnriched.sma20,
+        previous_sma50: previousEnriched.sma50,
+        latest_sma20: latestEnriched.sma20,
+        latest_sma50: latestEnriched.sma50,
+        condition: "SMA20(t) > SMA50(t) and SMA20(t-1) <= SMA50(t-1)"
+      },
+      explanation:
+        "La media mobile breve ha attraversato dal basso verso l'alto la media mobile intermedia.",
+      theoreticalReading:
+        "I crossover rialzisti sono normalmente interpretati come potenziale miglioramento della struttura di trend, pur restando segnali ritardati.",
+      limitations:
+        "Il crossover non indica ampiezza o durata del movimento futuro e può essere poco robusto in fasi laterali.",
+      strength: 5
+    }));
+  }
+
+  if (
+    latestEnriched.rsi14 !== null &&
+    latestEnriched.rsi14 >= 50 &&
+    latestEnriched.rsi14 <= 70
+  ) {
+    patterns.push(buildPattern({
+      ticker: normalizedTicker,
+      patternName: "RSI14 Supportive Bullish Momentum",
+      detectedAt: latest.date,
+      windowStart,
+      windowEnd,
+      triggerConditions: {
+        rsi14: latestEnriched.rsi14,
+        condition: "50 <= RSI14 <= 70"
+      },
+      explanation:
+        "RSI14 è sopra 50 ma non ancora in area estrema sopra 70.",
+      theoreticalReading:
+        "Nella lettura tradizionale, RSI sopra 50 è coerente con momentum positivo; sotto 70 evita una lettura immediatamente estesa.",
+      limitations:
+        "RSI va letto insieme a trend, volume e contesto; da solo non costituisce una decisione operativa.",
+      strength: calculateRsiMomentumStrength(latestEnriched.rsi14)
+    }));
+  }
+
+  if (
+    previousEnriched.rsi14 !== null &&
+    latestEnriched.rsi14 !== null &&
+    previousEnriched.rsi14 < 30 &&
+    latestEnriched.rsi14 >= 30
+  ) {
+    patterns.push(buildPattern({
+      ticker: normalizedTicker,
+      patternName: "RSI14 Recovery From Oversold",
+      detectedAt: latest.date,
+      windowStart,
+      windowEnd,
+      triggerConditions: {
+        previous_rsi14: previousEnriched.rsi14,
+        latest_rsi14: latestEnriched.rsi14,
+        condition: "RSI14(t-1) < 30 and RSI14(t) >= 30"
+      },
+      explanation:
+        "RSI14 è rientrato sopra la soglia 30 dopo una fase di debolezza.",
+      theoreticalReading:
+        "Il recupero da area oversold viene spesso letto come possibile riduzione della pressione negativa, ma richiede conferme.",
+      limitations:
+        "Un rimbalzo RSI da oversold non implica automaticamente inversione del trend o recupero duraturo.",
+      strength: 3.5
+    }));
+  }
+
+  if (
+    latestEnriched.avgVolume20 !== null &&
+    latest.volume !== null &&
+    latest.volume > latestEnriched.avgVolume20 * 1.5 &&
+    latest.close !== null &&
+    previous.close !== null &&
+    latest.close > previous.close
+  ) {
+    patterns.push(buildPattern({
+      ticker: normalizedTicker,
+      patternName: "Positive Price Move With Relative Volume",
+      detectedAt: latest.date,
+      windowStart,
+      windowEnd,
+      triggerConditions: {
+        latest_volume: latest.volume,
+        avg_volume_20: latestEnriched.avgVolume20,
+        close: latest.close,
+        previous_close: previous.close,
+        condition: "volume > 1.5x avgVolume20 and close > previousClose"
+      },
+      explanation:
+        "Il prezzo è salito in una seduta con volume superiore alla media recente.",
+      theoreticalReading:
+        "Nell'analisi tecnica, un movimento di prezzo accompagnato da volume superiore alla media è spesso considerato più significativo di un movimento con volume debole.",
+      limitations:
+        "Il volume elevato non spiega la causa del movimento e può dipendere da news, ribilanciamenti o eventi tecnici.",
+      strength: 2.5
+    }));
+  }
+
+  return deduplicatePatterns(patterns);
 }
 
-function normalizeAndSortRecords(records) {
-  return [...records]
-    .filter((record) => record.date && record.close !== null && record.close !== undefined)
-    .map((record) => ({
-      ...record,
-      close: Number(record.close),
-      volume: record.volume === null || record.volume === undefined ? null : Number(record.volume)
+function normalizePriceRows(records) {
+  return (records || [])
+    .map((row) => ({
+      date: row.date,
+      open: normalizeNumber(row.open),
+      high: normalizeNumber(row.high),
+      low: normalizeNumber(row.low),
+      close: normalizeNumber(row.close),
+      volume: normalizeNumber(row.volume)
     }))
-    .filter((record) => !Number.isNaN(record.close))
+    .filter((row) => row.date && row.close !== null)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 }
 
-function detectSma20Sma50Pattern({ ticker, records }) {
-  if (records.length < 50) {
+function calculateSma(records, index, period) {
+  if (index + 1 < period) {
     return null;
   }
 
-  const closes = records.map((record) => record.close);
-  const sma20 = simpleMovingAverage(closes, 20);
-  const sma50 = simpleMovingAverage(closes, 50);
+  const slice = records.slice(index + 1 - period, index + 1);
+  const closes = slice.map((row) => row.close).filter((value) => value !== null);
 
-  const latestRecord = records[records.length - 1];
-  const previousRecord = records[records.length - 2];
-
-  const latestSma20 = sma20[sma20.length - 1];
-  const previousSma20 = sma20[sma20.length - 2];
-
-  const latestSma50 = sma50[sma50.length - 1];
-  const previousSma50 = sma50[sma50.length - 2];
-
-  if (!latestSma20 || !latestSma50 || !previousSma20 || !previousSma50) {
+  if (closes.length < period) {
     return null;
   }
 
-  const crossedAbove =
-    latestSma20.value > latestSma50.value &&
-    previousSma20.value <= previousSma50.value;
-
-  const above =
-    latestSma20.value > latestSma50.value;
-
-  if (!crossedAbove && !above) {
-    return null;
-  }
-
-  return {
-    ticker,
-    pattern_name: crossedAbove
-      ? "Incrocio SMA20/SMA50"
-      : "SMA20 superiore a SMA50",
-    timeframe: "Daily, ultimi 50+ record disponibili",
-    explanation: crossedAbove
-      ? "La media mobile semplice a 20 giorni ha superato la media mobile semplice a 50 giorni nell'ultima finestra osservata."
-      : "La media mobile semplice a 20 giorni risulta superiore alla media mobile semplice a 50 giorni nell'ultima osservazione disponibile.",
-    trigger_conditions_json: {
-      condition: crossedAbove
-        ? "SMA20(t) > SMA50(t) e SMA20(t-1) <= SMA50(t-1)"
-        : "SMA20(t) > SMA50(t)",
-      latest_sma20: roundNumber(latestSma20.value),
-      latest_sma50: roundNumber(latestSma50.value),
-      previous_sma20: roundNumber(previousSma20.value),
-      previous_sma50: roundNumber(previousSma50.value),
-      latest_close: roundNumber(latestRecord.close)
-    },
-    detected_at: latestRecord.date,
-    window_start: records[Math.max(0, records.length - 50)]?.date || records[0]?.date || null,
-    window_end: latestRecord.date,
-    limitations_note:
-      "Le medie mobili sono indicatori ritardati e non indicano direzione, probabilità o ampiezza futura del movimento.",
-    source_id: latestRecord.source_id || "financial_modeling_prep"
-  };
+  return roundNumber(closes.reduce((sum, value) => sum + value, 0) / period);
 }
 
-function detectRsi14Pattern({ ticker, records }) {
-  if (records.length < 15) {
+function calculateAverageVolume(records, index, period) {
+  if (index + 1 < period) {
     return null;
   }
 
-  const closes = records.map((record) => record.close);
-  const rsi = calculateRsi(closes, 14);
+  const slice = records.slice(index + 1 - period, index + 1);
+  const volumes = slice.map((row) => row.volume).filter((value) => value !== null);
 
-  if (rsi === null) {
+  if (volumes.length < period) {
     return null;
   }
 
-  const latestRecord = records[records.length - 1];
-
-  let patternName = null;
-  let explanation = null;
-  let condition = null;
-
-  if (rsi >= 70) {
-    patternName = "RSI14 sopra soglia 70";
-    explanation =
-      "L'indicatore RSI a 14 periodi risulta sopra la soglia 70 nell'ultima osservazione disponibile.";
-    condition = "RSI14 >= 70";
-  } else if (rsi <= 30) {
-    patternName = "RSI14 sotto soglia 30";
-    explanation =
-      "L'indicatore RSI a 14 periodi risulta sotto la soglia 30 nell'ultima osservazione disponibile.";
-    condition = "RSI14 <= 30";
-  } else if (rsi > 50) {
-    patternName = "RSI14 sopra area neutrale";
-    explanation =
-      "L'indicatore RSI a 14 periodi risulta sopra il livello neutrale 50 nell'ultima osservazione disponibile.";
-    condition = "RSI14 > 50";
-  } else {
-    return null;
-  }
-
-  return {
-    ticker,
-    pattern_name: patternName,
-    timeframe: "Daily, RSI14",
-    explanation,
-    trigger_conditions_json: {
-      condition,
-      rsi14: roundNumber(rsi),
-      latest_close: roundNumber(latestRecord.close)
-    },
-    detected_at: latestRecord.date,
-    window_start: records[Math.max(0, records.length - 15)]?.date || records[0]?.date || null,
-    window_end: latestRecord.date,
-    limitations_note:
-      "RSI è un indicatore descrittivo di momentum sul periodo osservato. Non indica necessariamente continuità futura del movimento.",
-    source_id: latestRecord.source_id || "financial_modeling_prep"
-  };
+  return roundNumber(volumes.reduce((sum, value) => sum + value, 0) / period);
 }
 
-function detectRelativeVolumePattern({ ticker, records }) {
-  if (records.length < 21) {
+function calculateRsi(records, index, period) {
+  if (index < period) {
     return null;
   }
 
-  const latestRecord = records[records.length - 1];
-
-  if (!latestRecord.volume || Number.isNaN(Number(latestRecord.volume))) {
-    return null;
-  }
-
-  const previousTwentyRecords = records.slice(records.length - 21, records.length - 1);
-  const volumes = previousTwentyRecords
-    .map((record) => Number(record.volume))
-    .filter((value) => !Number.isNaN(value) && value > 0);
-
-  if (volumes.length < 10) {
-    return null;
-  }
-
-  const averageVolume =
-    volumes.reduce((sum, value) => sum + value, 0) / volumes.length;
-
-  const relativeVolume = Number(latestRecord.volume) / averageVolume;
-
-  if (relativeVolume < 1.5) {
-    return null;
-  }
-
-  return {
-    ticker,
-    pattern_name: "Volume relativo superiore alla media 20 giorni",
-    timeframe: "Daily, volume relativo 20 giorni",
-    explanation:
-      "Il volume dell'ultima osservazione risulta superiore alla media dei volumi delle precedenti 20 osservazioni disponibili.",
-    trigger_conditions_json: {
-      condition: "Volume(t) >= 1.5 * media_volume_20",
-      latest_volume: Number(latestRecord.volume),
-      average_volume_20: Math.round(averageVolume),
-      relative_volume: roundNumber(relativeVolume)
-    },
-    detected_at: latestRecord.date,
-    window_start: previousTwentyRecords[0]?.date || null,
-    window_end: latestRecord.date,
-    limitations_note:
-      "Un volume superiore alla media non spiega da solo la causa del movimento e non indica una direzione futura.",
-    source_id: latestRecord.source_id || "financial_modeling_prep"
-  };
-}
-
-function buildInsufficientDataPattern({ ticker, records, requiredRecords }) {
-  return {
-    ticker,
-    pattern_name: "Dati storici insufficienti per pattern tecnici",
-    timeframe: `Daily, ${records.length} record disponibili`,
-    explanation:
-      "Il numero di record storici disponibili non è sufficiente per calcolare i pattern tecnici implementati.",
-    trigger_conditions_json: {
-      available_records: records.length,
-      required_records: requiredRecords,
-      result: "insufficient_data"
-    },
-    detected_at: records[records.length - 1]?.date || null,
-    window_start: records[0]?.date || null,
-    window_end: records[records.length - 1]?.date || null,
-    limitations_note:
-      "Il calcolo richiede uno storico minimo. Nessuna indicazione operativa può essere derivata da questo stato.",
-    source_id: records[records.length - 1]?.source_id || "financial_modeling_prep"
-  };
-}
-
-function simpleMovingAverage(values, period) {
-  const result = [];
-
-  for (let index = period - 1; index < values.length; index += 1) {
-    const windowValues = values.slice(index - period + 1, index + 1);
-    const sum = windowValues.reduce((acc, value) => acc + value, 0);
-
-    result.push({
-      index,
-      value: sum / period
-    });
-  }
-
-  return result;
-}
-
-function calculateRsi(values, period) {
-  if (values.length <= period) {
-    return null;
-  }
-
-  const recentValues = values.slice(values.length - period - 1);
   let gains = 0;
   let losses = 0;
 
-  for (let index = 1; index < recentValues.length; index += 1) {
-    const change = recentValues[index] - recentValues[index - 1];
+  for (let i = index - period + 1; i <= index; i += 1) {
+    const currentClose = records[i]?.close;
+    const previousClose = records[i - 1]?.close;
 
-    if (change > 0) {
+    if (currentClose === null || previousClose === null) {
+      return null;
+    }
+
+    const change = currentClose - previousClose;
+
+    if (change >= 0) {
       gains += change;
     } else {
       losses += Math.abs(change);
@@ -313,14 +250,85 @@ function calculateRsi(values, period) {
   }
 
   const relativeStrength = averageGain / averageLoss;
+  const rsi = 100 - 100 / (1 + relativeStrength);
 
-  return 100 - 100 / (1 + relativeStrength);
+  return roundNumber(rsi);
 }
 
-function roundNumber(value) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+function buildPattern({
+  ticker,
+  patternName,
+  detectedAt,
+  windowStart,
+  windowEnd,
+  triggerConditions,
+  explanation,
+  theoreticalReading,
+  limitations,
+  strength
+}) {
+  return {
+    ticker,
+    pattern_name: patternName,
+    timeframe: "Daily",
+    trigger_conditions_json: triggerConditions,
+    detected_at: detectedAt,
+    window_start: windowStart,
+    window_end: windowEnd,
+    explanation,
+    theoretical_reading: theoreticalReading,
+    limitations_note: limitations,
+    strength_score: strength,
+    source_id: "technical_pattern_engine",
+    computed_at: new Date().toISOString()
+  };
+}
+
+function calculateSmaSpreadStrength(sma20, sma50) {
+  if (!sma20 || !sma50) {
+    return 1;
+  }
+
+  const spreadPct = ((sma20 - sma50) / sma50) * 100;
+
+  if (spreadPct >= 5) return 4;
+  if (spreadPct >= 2) return 3;
+  if (spreadPct >= 0.5) return 2;
+
+  return 1;
+}
+
+function calculateRsiMomentumStrength(rsi) {
+  if (rsi >= 60 && rsi <= 70) return 3;
+  if (rsi >= 55) return 2.5;
+  return 2;
+}
+
+function deduplicatePatterns(patterns) {
+  const byKey = new Map();
+
+  for (const pattern of patterns) {
+    const key = `${pattern.ticker}-${pattern.pattern_name}-${pattern.detected_at}`;
+    byKey.set(key, pattern);
+  }
+
+  return Array.from(byKey.values());
+}
+
+function normalizeNumber(value) {
+  if (value === null || value === undefined || value === "") {
     return null;
   }
 
-  return Math.round(Number(value) * 100) / 100;
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) {
+    return null;
+  }
+
+  return numberValue;
+}
+
+function roundNumber(value) {
+  return Math.round(Number(value) * 1000000) / 1000000;
 }
