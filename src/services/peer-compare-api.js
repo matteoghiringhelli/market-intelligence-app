@@ -1,8 +1,14 @@
-export async function fetchRealPeerComparison(symbol = "AAPL", limit = 8, refresh = false) {
+export async function fetchRealPeerComparison(
+  symbol = "AAPL",
+  limit = 8,
+  refresh = false,
+  refreshFundamentals = false
+) {
   const params = new URLSearchParams({
     symbol,
     limit: String(limit),
-    refresh: String(refresh)
+    refresh: String(refresh),
+    refreshFundamentals: String(refreshFundamentals)
   });
 
   const response = await fetch(`/api/market/peer-compare-db?${params.toString()}`);
@@ -13,7 +19,7 @@ export async function fetchRealPeerComparison(symbol = "AAPL", limit = 8, refres
     throw new Error(
       errorPayload?.message ||
         errorPayload?.error ||
-        `Errore peer compare. Status: ${response.status}`
+        `Errore Peer Compare DB. Status: ${response.status}`
     );
   }
 

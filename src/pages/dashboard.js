@@ -205,7 +205,7 @@ async function loadPeersForTopSignals() {
     }
 
     try {
-      const payload = await fetchRealPeerComparison(row.ticker, 5, false);
+      const payload = await fetchRealPeerComparison(row.ticker, 5, false, true);
       dashboardPeerByTicker[row.ticker] = payload;
     } catch {
       dashboardPeerByTicker[row.ticker] = null;
