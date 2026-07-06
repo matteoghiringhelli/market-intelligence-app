@@ -1,465 +1,362 @@
-import { mockSecurities } from "../data/mock-securities.js";
-import { fetchRealQuote } from "../services/real-market-api.js";
-import { fetchTechnicalPatternsFromDb } from "../services/technical-patterns-api.js";
+import { fetchRealPeerComparison } from "../services/peer-compare-api.js";
 import {
-  setRealDataStatus,
-  resetRealDataStatus
-} from "../state/real-data-status.js";
+  searchMarketUniverse,
+  fetchTopBullishSignals,
+  refreshMarketUniverse
+} from "../services/market-universe-api.js";
 
-let dashboardProvider = "fmp";
-let dashboardQuotes = {};
-let dashboardTechnicalPatterns = {};
-let dashboardLoading = false;
-let dashboardPatternLoading = false;
-let dashboardError = null;
-let dashboardPatternError = null;
-let dashboardLastUpdate = null;
-let dashboardPatternLastUpdate = null;
+let dashboardSearchQuery = "";
+let dashboardSearchResults = [];
+let dashboardTopSignals = [];
+let dashboardPeerByTicker = {};
+let dashboardStatus = "Caricamento Top 10 Bullish Study Score...";
+let dashboardInitialLoadDone = false;
 
-function renderSecurityCard(security) {
-  const realQuote = dashboardQuotes[security.ticker];
-  const hasRealQuote = Boolean(realQuote);
-
-  const patternInfo = dashboardTechnicalPatterns[security.ticker];
-  const hasPatternInfo = Boolean(patternInfo);
-
-  const patternBadge = renderPatternStatusBadge(security.ticker, patternInfo);
-
-  const priceBlock = hasRealQuote
-    ? `
-      <div class="dashboard-real-data">
-        <p><strong>Prezzo reale:</strong> ${formatValue(realQuote.price)}</p>
-        <p><strong>Variazione:</strong> ${formatValue(realQuote.changePercent)}</p>
-        <p><strong>Volume:</strong> ${formatValue(realQuote.volume)}</p>
-        <p><strong>Data dato:</strong> ${formatValue(realQuote.data_as_of)}</p>
-      </div>
-    `
-    : `
-      <div class="dashboard-mock-data">
-        <p><strong>Dato reale:</strong> non ancora caricato</p>
-      </div>
-    `;
-
-  const qualityBadge = hasRealQuote
-    ? `
-      <span class="quality-badge ${
-        realQuote.completeness_score >= 80 ? "quality-badge--ok" : "quality-badge--warning"
-      }">
-        Completezza ${realQuote.completeness_score}%
-      </span>
-    `
-    : `<span class="quality-badge quality-badge--neutral">Mock</span>`;
-
-  const patternSummaryBlock = hasPatternInfo
-    ? `
-      <div class="dashboard-pattern-summary">
-        <p><strong>Pattern tecnici:</strong> ${patternInfo.patternsCount}</p>
-        <p><strong>Ultimo pattern:</strong> ${formatValue(patternInfo.latestPatternName)}</p>
-        <p><strong>Computed at:</strong> ${formatValue(patternInfo.latestComputedAt)}</p>
-      </div>
-    `
-    : `
-      <div class="dashboard-pattern-summary dashboard-pattern-summary--empty">
-        <p><strong>Pattern tecnici:</strong> non caricati</p>
-      </div>
-    `;
-
-  const auditBlock = hasRealQuote
-    ? `
-      <section class="audit-box dashboard-audit-box">
-        <p><strong>Fonte:</strong> ${realQuote.source_id}</p>
-        <p><strong>Fetched at:</strong> ${realQuote.fetched_at}</p>
-        <p><strong>Data as of:</strong> ${formatValue(realQuote.data_as_of)}</p>
-        <p><strong>Provider:</strong> ${dashboardProvider}</p>
-      </section>
-    `
-    : `
-      <section class="audit-box dashboard-audit-box">
-        <p><strong>Fonte:</strong> ${security.source}</p>
-        <p><strong>Nota:</strong> dati mock didattici. Clicca “Carica quote reali” per aggiornare.</p>
-      </section>
-    `;
+export function renderDashboard() {
+  if (!dashboardInitialLoadDone) {
+    dashboardInitialLoadDone = true;
+    setTimeout(() => loadDashboardTopSignals(false), 0);
+  }
 
   return `
-    <article class="security-card">
-      <div class="security-card__top">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Educational Market Intelligence</p>
+        <h1>Dashboard</h1>
+        <p class="subtitle">
+          Dashboard focalizzata sui 10 titoli Nasdaq/NYSE con più condizioni tecniche
+          normalmente interpretate come coerenti con momentum o trend rialzista.
+        </p>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="panel-header">
         <div>
-          <h2>${security.ticker}</h2>
-          <p>${security.companyName}</p>
-        </div>
-
-        <div class="dashboard-card-badges">
-          <span class="badge">${security.exchange}</span>
-          ${qualityBadge}
-          ${patternBadge}
+          <h2>Market Study Focus</h2>
+          <p>
+            Cerca qualunque titolo dell'universo Nasdaq/NYSE oppure studia i Top 10
+            per Bullish Study Score. Non sono raccomandazioni operative.
+          </p>
         </div>
       </div>
 
-      <div class="security-card__body">
-        <p><strong>Settore:</strong> ${security.sector}</p>
-        <p><strong>Industria:</strong> ${security.industry}</p>
-        <p><strong>Qualità dati mock:</strong> ${security.dataQuality}</p>
-        <p><strong>Ultimo aggiornamento mock:</strong> ${security.lastUpdate}</p>
+      <section class="dashboard-search-panel">
+        <label>
+          <span class="selector-label">Cerca ticker o nome società</span>
+          <input
+            id="dashboard-security-search"
+            class="manual-operation-input"
+            type="search"
+            placeholder="Esempio: AAPL, Apple, Tesla, JPM..."
+            value="${escapeHtmlAttribute(dashboardSearchQuery)}"
+            oninput="searchDashboardUniverse(this.value)"
+          />
+        </label>
 
-        ${priceBlock}
-        ${patternSummaryBlock}
+        <div id="dashboard-search-results">
+          ${renderDashboardSearchResults()}
+        </div>
+      </section>
+
+      <section class="peer-actions-row">
+        <button
+          class="button"
+          type="button"
+          onclick="refreshDashboardUniverseFromUi()"
+        >
+          Aggiorna universo Nasdaq/NYSE
+        </button>
+
+        <button
+          class="secondary-button"
+          type="button"
+          onclick="loadDashboardTopSignals(true)"
+        >
+          Ricalcola Top 10 segnali
+        </button>
+      </section>
+
+      <div id="dashboard-status" class="description-box">
+        ${dashboardStatus}
       </div>
 
-      ${auditBlock}
+      <div id="dashboard-top-signals">
+        ${renderTopSignals()}
+      </div>
+    </section>
+  `;
+}
 
-      <button class="button" type="button" onclick="openSecurityDetail('${security.ticker}')">
+window.searchDashboardUniverse = async function searchDashboardUniverse(query) {
+  dashboardSearchQuery = query;
+
+  const resultsEl = document.querySelector("#dashboard-search-results");
+
+  if (!resultsEl) {
+    return;
+  }
+
+  if (!query || query.trim().length < 2) {
+    dashboardSearchResults = [];
+    resultsEl.innerHTML = renderDashboardSearchResults();
+    return;
+  }
+
+  try {
+    const payload = await searchMarketUniverse(query, 20);
+    dashboardSearchResults = payload?.data?.records || [];
+    resultsEl.innerHTML = renderDashboardSearchResults();
+  } catch (error) {
+    resultsEl.innerHTML = `
+      <section class="audit-box">
+        <p><strong>Errore ricerca:</strong> ${escapeHtml(error.message)}</p>
+      </section>
+    `;
+  }
+};
+
+window.refreshDashboardUniverseFromUi = async function refreshDashboardUniverseFromUi() {
+  const statusEl = document.querySelector("#dashboard-status");
+
+  if (statusEl) {
+    statusEl.innerHTML = "Aggiornamento universo Nasdaq/NYSE da provider...";
+  }
+
+  try {
+    const payload = await refreshMarketUniverse();
+
+    dashboardStatus = `
+      Universo aggiornato. Record upserted:
+      <strong>${payload.data?.upserted || 0}</strong>.
+    `;
+
+    if (statusEl) {
+      statusEl.innerHTML = dashboardStatus;
+    }
+  } catch (error) {
+    dashboardStatus = `<strong>Errore universe refresh:</strong> ${escapeHtml(error.message)}`;
+
+    if (statusEl) {
+      statusEl.innerHTML = dashboardStatus;
+    }
+  }
+};
+
+window.loadDashboardTopSignals = async function loadDashboardTopSignals(refresh = false) {
+  const statusEl = document.querySelector("#dashboard-status");
+  const contentEl = document.querySelector("#dashboard-top-signals");
+
+  if (statusEl) {
+    statusEl.innerHTML = refresh
+      ? "Ricalcolo Bullish Study Score da pattern tecnici..."
+      : "Lettura Top 10 Bullish Study Score da Supabase...";
+  }
+
+  try {
+    const payload = await fetchTopBullishSignals(10, refresh);
+    dashboardTopSignals = payload?.data?.records || [];
+
+    dashboardStatus = `
+      Top 10 caricati: <strong>${dashboardTopSignals.length}</strong>.
+      ${payload.disclaimer || ""}
+    `;
+
+    if (statusEl) {
+      statusEl.innerHTML = dashboardStatus;
+    }
+
+    if (contentEl) {
+      contentEl.innerHTML = renderTopSignals();
+    }
+
+    await loadPeersForTopSignals();
+  } catch (error) {
+    dashboardStatus = `<strong>Errore Top 10:</strong> ${escapeHtml(error.message)}`;
+
+    if (statusEl) {
+      statusEl.innerHTML = dashboardStatus;
+    }
+  }
+};
+
+async function loadPeersForTopSignals() {
+  const contentEl = document.querySelector("#dashboard-top-signals");
+
+  for (const row of dashboardTopSignals) {
+    if (dashboardPeerByTicker[row.ticker]) {
+      continue;
+    }
+
+    try {
+      const payload = await fetchRealPeerComparison(row.ticker, 5, false);
+      dashboardPeerByTicker[row.ticker] = payload;
+    } catch {
+      dashboardPeerByTicker[row.ticker] = null;
+    }
+  }
+
+  if (contentEl) {
+    contentEl.innerHTML = renderTopSignals();
+  }
+}
+
+function renderDashboardSearchResults() {
+  if (!dashboardSearchResults.length) {
+    return "";
+  }
+
+  const rows = dashboardSearchResults
+    .map((row) => {
+      return `
+        <button
+          class="dashboard-search-result"
+          type="button"
+          onclick="openSecurityDetail('${escapeJsString(row.ticker)}')"
+        >
+          <strong>${escapeHtml(row.ticker)}</strong>
+          <span>${escapeHtml(row.company_name || "n/d")}</span>
+          <small>${escapeHtml(row.exchange_short_name || "n/d")}</small>
+        </button>
+      `;
+    })
+    .join("");
+
+  return `
+    <section class="dashboard-search-results-list">
+      ${rows}
+    </section>
+  `;
+}
+
+function renderTopSignals() {
+  if (!dashboardTopSignals.length) {
+    return `
+      <section class="note-box">
+        Nessun Bullish Study Score disponibile. Aggiorna universo, carica storico/pattern
+        a batch e poi clicca “Ricalcola Top 10 segnali”.
+      </section>
+    `;
+  }
+
+  const cards = dashboardTopSignals.map(renderTopSignalCard).join("");
+
+  return `
+    <section class="top-signals-grid">
+      ${cards}
+    </section>
+  `;
+}
+
+function renderTopSignalCard(row) {
+  const peerPayload = dashboardPeerByTicker[row.ticker];
+  const peerRows = peerPayload?.data?.rows || [];
+
+  return `
+    <article class="top-signal-card">
+      <div class="top-signal-card__header">
+        <div>
+          <p class="eyebrow">${escapeHtml(row.exchange_short_name || "n/d")}</p>
+          <h3>${escapeHtml(row.ticker)}</h3>
+          <p>${escapeHtml(row.company_name || "n/d")}</p>
+        </div>
+
+        <span class="quality-badge quality-badge--ok">
+          Score ${formatNumber(row.bullish_score)}
+        </span>
+      </div>
+
+      <section class="description-box">
+        <p><strong>Segnali:</strong> ${formatValue(row.bullish_signal_count)}</p>
+        <p><strong>Ultimo pattern:</strong> ${escapeHtml(row.latest_pattern_name || "n/d")}</p>
+        <p><strong>Computed:</strong> ${formatValue(row.latest_computed_at)}</p>
+      </section>
+
+      ${renderSignalReasons(row.reasons)}
+
+      <section class="embedded-peer-comparison">
+        <h4>Peer Compare sintetico</h4>
+        ${renderPeerComparisonMini(peerRows)}
+      </section>
+
+      <button class="button" type="button" onclick="openSecurityDetail('${escapeJsString(row.ticker)}')">
         Apri scheda titolo
       </button>
     </article>
   `;
 }
 
-function renderPatternStatusBadge(ticker, patternInfo) {
-  if (dashboardPatternLoading) {
-    return `
-      <span class="quality-badge quality-badge--neutral">
-        Pattern...
-      </span>
-    `;
+function renderSignalReasons(reasons) {
+  const parsedReasons = Array.isArray(reasons) ? reasons : [];
+
+  if (!parsedReasons.length) {
+    return "";
   }
 
-  if (!patternInfo) {
-    return `
-      <span class="quality-badge quality-badge--warning">
-        Pattern n/d
-      </span>
-    `;
-  }
-
-  if (patternInfo.patternsCount > 0) {
-    return `
-      <span class="quality-badge quality-badge--ok">
-        ${patternInfo.patternsCount} pattern
-      </span>
-    `;
-  }
+  const items = parsedReasons
+    .slice(0, 3)
+    .map((reason) => {
+      return `
+        <li>
+          <strong>${escapeHtml(reason.pattern_name || "Pattern")}</strong> —
+          ${escapeHtml(reason.theoretical_reading || "lettura teorica non disponibile")}
+        </li>
+      `;
+    })
+    .join("");
 
   return `
-    <span class="quality-badge quality-badge--warning">
-      0 pattern
-    </span>
-  `;
-}
-
-function renderDashboardControls() {
-  return `
-    <section class="dashboard-controls">
-      <div>
-        <p class="selector-label">Provider dati reali</p>
-
-        <div class="symbol-selector">
-          <button
-            class="symbol-button ${dashboardProvider === "fmp" ? "symbol-button--active" : ""}"
-            type="button"
-            onclick="setDashboardProvider('fmp')"
-          >
-            FMP
-          </button>
-
-          <button
-            class="symbol-button ${dashboardProvider === "alpha" ? "symbol-button--active" : ""}"
-            type="button"
-            onclick="setDashboardProvider('alpha')"
-          >
-            Alpha Vantage
-          </button>
-        </div>
-      </div>
-
-      <div class="dashboard-actions">
-        <button
-          class="button dashboard-refresh-button"
-          type="button"
-          onclick="refreshDashboardRealQuotes()"
-          ${dashboardLoading ? "disabled" : ""}
-        >
-          ${dashboardLoading ? "Caricamento quote..." : "Carica quote reali"}
-        </button>
-
-        <button
-          class="secondary-button"
-          type="button"
-          onclick="refreshDashboardTechnicalPatterns()"
-          ${dashboardPatternLoading ? "disabled" : ""}
-        >
-          ${dashboardPatternLoading ? "Caricamento pattern..." : "Carica stato pattern"}
-        </button>
-
-        <button
-          class="secondary-button"
-          type="button"
-          onclick="clearDashboardRealQuotes()"
-          ${dashboardLoading || dashboardPatternLoading ? "disabled" : ""}
-        >
-          Torna ai mock
-        </button>
-      </div>
+    <section class="note-box">
+      <p><strong>Lettura teorica:</strong></p>
+      <ul>
+        ${items}
+      </ul>
     </section>
   `;
 }
 
-function renderDashboardStatus() {
-  const statusBlocks = [];
-
-  if (dashboardLoading) {
-    statusBlocks.push(`
-      <section class="description-box">
-        <p>
-          Caricamento quote reali tramite provider <strong>${dashboardProvider}</strong>.
-          Le richieste vengono eseguite una alla volta per rispettare i limiti free.
-        </p>
-      </section>
-    `);
-  }
-
-  if (dashboardPatternLoading) {
-    statusBlocks.push(`
-      <section class="description-box">
-        <p>
-          Caricamento stato pattern tecnici da Supabase.
-          La Dashboard resta leggibile anche durante il caricamento.
-        </p>
-      </section>
-    `);
-  }
-
-  if (dashboardError) {
-    statusBlocks.push(`
-      <section class="audit-box">
-        <p><strong>Messaggio API quote:</strong> ${dashboardError}</p>
-        <p>
-          La Dashboard resta utilizzabile con dati mock. Se il messaggio riguarda limiti free,
-          riduci le richieste o usa un provider alternativo.
-        </p>
-      </section>
-    `);
-  }
-
-  if (dashboardPatternError) {
-    statusBlocks.push(`
-      <section class="audit-box">
-        <p><strong>Messaggio API pattern:</strong> ${dashboardPatternError}</p>
-        <p>
-          I pattern restano opzionali. Verifica che il job tecnico abbia popolato
-          <code>technical_patterns</code>.
-        </p>
-      </section>
-    `);
-  }
-
-  if (dashboardLastUpdate) {
-    statusBlocks.push(`
-      <section class="description-box">
-        <p>
-          Quote reali caricate correttamente.
-          Ultimo aggiornamento quote: <strong>${dashboardLastUpdate}</strong>.
-          Provider: <strong>${dashboardProvider}</strong>.
-        </p>
-      </section>
-    `);
-  }
-
-  if (dashboardPatternLastUpdate) {
-    statusBlocks.push(`
-      <section class="description-box">
-        <p>
-          Stato pattern tecnici aggiornato.
-          Ultimo aggiornamento pattern: <strong>${dashboardPatternLastUpdate}</strong>.
-        </p>
-      </section>
-    `);
-  }
-
-  if (!statusBlocks.length) {
+function renderPeerComparisonMini(peerRows) {
+  if (!peerRows.length) {
     return `
-      <section class="note-box">
-        <strong>Modalità sicura:</strong>
-        la Dashboard parte con dati mock per evitare consumo automatico delle API free.
-        Usa “Carica quote reali” o “Carica stato pattern” solo quando vuoi aggiornare
-        i ticker visibili.
-      </section>
+      <p class="muted-text">
+        Peer non ancora disponibili in cache. Apri Peer Compare o aggiorna peer per questo titolo.
+      </p>
     `;
   }
 
-  return statusBlocks.join("");
-}
-
-function renderDashboardContent() {
-  const cards = mockSecurities.map(renderSecurityCard).join("");
+  const rows = peerRows
+    .slice(0, 6)
+    .map((peer) => {
+      return `
+        <tr>
+          <td>${escapeHtml(peer.ticker)}</td>
+          <td>${escapeHtml(peer.role)}</td>
+          <td>${formatNumber(peer.latest_close)}</td>
+          <td>${formatValue(peer.relative_close_vs_base)}%</td>
+          <td>${formatValue(peer.records_count)}</td>
+        </tr>
+      `;
+    })
+    .join("");
 
   return `
-    <div class="panel-header">
-      <div>
-        <h2>Dashboard titoli</h2>
-        <p>
-          Dashboard con fallback mock, quote reali on-demand e stato pattern tecnici da Supabase.
-        </p>
-      </div>
-    </div>
-
-    ${renderDashboardControls()}
-    ${renderDashboardStatus()}
-
-    <div class="grid">
-      ${cards}
+    <div class="history-table-wrapper">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Ruolo</th>
+            <th>Close</th>
+            <th>Vs base</th>
+            <th>Storico</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
     </div>
   `;
-}
-
-export function renderDashboard() {
-  return `
-    <header class="app-header">
-      <div>
-        <p class="eyebrow">Educational Market Intelligence</p>
-        <h1>Market Intelligence App</h1>
-        <p class="subtitle">
-          Dashboard didattica per consultare dati descrittivi su titoli azionari,
-          peer group, pattern tecnici e qualità dati.
-        </p>
-      </div>
-    </header>
-
-    <section id="dashboard-panel" class="panel">
-      ${renderDashboardContent()}
-    </section>
-  `;
-}
-
-window.setDashboardProvider = function setDashboardProvider(provider) {
-  dashboardProvider = provider;
-  dashboardError = null;
-
-  setRealDataStatus({
-    status: "mock",
-    label: "Mock only",
-    provider: dashboardProvider,
-    sourceId: "mock",
-    lastUpdatedAt: dashboardLastUpdate,
-    loadedSymbols: Object.keys(dashboardQuotes),
-    message:
-      "Provider selezionato per il prossimo caricamento reale. La Dashboard sta ancora mostrando dati mock o dati precedentemente caricati."
-  });
-
-  refreshDashboardPanel();
-};
-
-window.clearDashboardRealQuotes = function clearDashboardRealQuotes() {
-  dashboardQuotes = {};
-  dashboardTechnicalPatterns = {};
-  dashboardError = null;
-  dashboardPatternError = null;
-  dashboardLastUpdate = null;
-  dashboardPatternLastUpdate = null;
-
-  resetRealDataStatus();
-
-  refreshDashboardPanel();
-};
-
-window.refreshDashboardRealQuotes = async function refreshDashboardRealQuotes() {
-  dashboardLoading = true;
-  dashboardError = null;
-
-  setRealDataStatus({
-    status: "loading",
-    label: "Loading",
-    provider: dashboardProvider,
-    sourceId: dashboardProvider,
-    lastUpdatedAt: new Date().toISOString(),
-    loadedSymbols: [],
-    message:
-      "Caricamento quote reali in corso tramite route multi-provider. Le richieste vengono eseguite una alla volta."
-  });
-
-  refreshDashboardPanel();
-
-  const nextQuotes = {};
-
-  try {
-    for (const security of mockSecurities) {
-      const payload = await fetchRealQuote(security.ticker, dashboardProvider);
-      nextQuotes[security.ticker] = payload.data;
-    }
-
-    dashboardQuotes = nextQuotes;
-    dashboardLastUpdate = new Date().toISOString();
-
-    const sourceId = Object.values(nextQuotes)[0]?.source_id || dashboardProvider;
-
-    setRealDataStatus({
-      status: "loaded",
-      label: "Real data loaded",
-      provider: dashboardProvider,
-      sourceId,
-      lastUpdatedAt: dashboardLastUpdate,
-      loadedSymbols: Object.keys(nextQuotes),
-      message:
-        "Quote reali caricate correttamente dalla Dashboard. I dati includono fonte, timestamp, data di riferimento e completezza."
-    });
-  } catch (error) {
-    dashboardError = error.message;
-
-    setRealDataStatus({
-      status: "error",
-      label: "API error",
-      provider: dashboardProvider,
-      sourceId: dashboardProvider,
-      lastUpdatedAt: new Date().toISOString(),
-      loadedSymbols: Object.keys(nextQuotes),
-      message:
-        error.message ||
-        "Errore durante il caricamento delle quote reali. La Dashboard resta disponibile con dati mock."
-    });
-  } finally {
-    dashboardLoading = false;
-    refreshDashboardPanel();
-  }
-};
-
-window.refreshDashboardTechnicalPatterns = async function refreshDashboardTechnicalPatterns() {
-  dashboardPatternLoading = true;
-  dashboardPatternError = null;
-  refreshDashboardPanel();
-
-  const nextPatternStatus = {};
-
-  try {
-    for (const security of mockSecurities) {
-      const payload = await fetchTechnicalPatternsFromDb(security.ticker, 20);
-      const patterns = payload?.data?.patterns || [];
-      const latestPattern = patterns[0] || null;
-
-      nextPatternStatus[security.ticker] = {
-        patternsCount: patterns.length,
-        latestPatternName: latestPattern?.pattern_name || null,
-        latestComputedAt: latestPattern?.computed_at || null,
-        sourceId: latestPattern?.source_id || payload?.data_quality?.source_id || null
-      };
-    }
-
-    dashboardTechnicalPatterns = nextPatternStatus;
-    dashboardPatternLastUpdate = new Date().toISOString();
-  } catch (error) {
-    dashboardPatternError = error.message;
-  } finally {
-    dashboardPatternLoading = false;
-    refreshDashboardPanel();
-  }
-};
-
-function refreshDashboardPanel() {
-  const panel = document.querySelector("#dashboard-panel");
-
-  if (!panel) {
-    return;
-  }
-
-  panel.innerHTML = renderDashboardContent();
 }
 
 function formatValue(value) {
@@ -468,4 +365,41 @@ function formatValue(value) {
   }
 
   return value;
+}
+
+function formatNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return "n/d";
+  }
+
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) {
+    return value;
+  }
+
+  return new Intl.NumberFormat("it-IT", {
+    maximumFractionDigits: 2
+  }).format(numberValue);
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeHtmlAttribute(value) {
+  return escapeHtml(value);
+}
+
+function escapeJsString(value) {
+  return String(value || "")
+    .replaceAll("\\", "\\\\")
+    .replaceAll("'", "\\'")
+    .replaceAll("\n", " ")
+    .replaceAll("\r", " ");
 }

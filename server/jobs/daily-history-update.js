@@ -7,6 +7,7 @@ import {
   upsertPriceHistoryRows,
   insertDataQualityLog
 } from "../lib/market-data-repository.js";
+import { getUniverseSymbols } from "../lib/market-universe-repository.js";
 
 const DEFAULT_SYMBOLS = ["AAPL", "MSFT", "JPM", "NVDA", "AMZN"];
 
@@ -21,9 +22,20 @@ export default async function handler(req, res) {
     });
   }
 
-  const symbols = parseSymbols(req.query.symbols);
+  const symbolResolution = await resolveRequestedSymbols(req);
+  const symbols = symbolResolution.symbols;
   const days = parseDays(req.query.days);
   const { from, to } = buildDateWindow(days);
+
+  if (!symbols.length) {
+    return res.status(400).json({
+      error: "NO_SYMBOLS_TO_PROCESS",
+      message:
+        "Nessun ticker da processare. Se usi symbols=all, esegui prima il refresh dell'universo Nasdaq/NYSE.",
+      symbol_resolution: symbolResolution,
+      fetched_at: new Date().toISOString()
+    });
+  }
 
   const startedAt = new Date().toISOString();
   const results = [];
@@ -78,7 +90,8 @@ export default async function handler(req, res) {
         recordRef: symbol,
         fieldName: "historical_eod_batch",
         sourceId: "financial_modeling_prep",
-        freshnessTs: result.payload?.data_quality?.fetched_at || new Date().toISOString(),
+        freshnessTs:
+          result.payload?.data_quality?.fetched_at || new Date().toISOString(),
         completenessFlag:
           Number(result.payload?.data_quality?.average_completeness_score || 0) >= 80,
         reliabilityTier: "external_vendor",
@@ -108,7 +121,7 @@ export default async function handler(req, res) {
       status: failedSymbols > 0 ? "completed_with_errors" : "completed",
       successfulSymbols,
       failedSymbols,
-      notes: "Daily historical EOD update persisted to Supabase."
+      notes: buildIngestionRunNotes(symbolResolution)
     });
 
     return res.status(200).json({
@@ -118,6 +131,7 @@ export default async function handler(req, res) {
       started_at: startedAt,
       finished_at: new Date().toISOString(),
       ingestion_run_id: ingestionRunId,
+      symbol_resolution: symbolResolution,
       date_window: {
         from,
         to,
@@ -149,7 +163,8 @@ export default async function handler(req, res) {
       message: error.message,
       started_at: startedAt,
       finished_at: new Date().toISOString(),
-      ingestion_run_id: ingestionRunId
+      ingestion_run_id: ingestionRunId,
+      symbol_resolution: symbolResolution
     });
   }
 }
@@ -185,6 +200,39 @@ function verifyCronAuthorization(req) {
   };
 }
 
+async function resolveRequestedSymbols(req) {
+  const symbolsQuery = req.query.symbols ? String(req.query.symbols).trim() : "";
+  const offset = parseOffset(req.query.offset);
+  const batchSize = parseBatchSize(req.query.batchSize);
+
+  if (symbolsQuery.toLowerCase() === "all") {
+    const universeRows = await getUniverseSymbols({
+      limit: batchSize,
+      offset
+    });
+
+    const symbols = universeRows
+      .map((row) => String(row.ticker || "").trim().toUpperCase())
+      .filter(Boolean);
+
+    return {
+      mode: "universe-batch",
+      source: "securities_universe",
+      offset,
+      batch_size: batchSize,
+      symbols
+    };
+  }
+
+  return {
+    mode: symbolsQuery ? "explicit-symbols" : "default-symbols",
+    source: symbolsQuery ? "query" : "default",
+    offset: null,
+    batch_size: null,
+    symbols: parseSymbols(symbolsQuery)
+  };
+}
+
 function parseSymbols(symbolsQuery) {
   if (!symbolsQuery) {
     return DEFAULT_SYMBOLS;
@@ -196,6 +244,26 @@ function parseSymbols(symbolsQuery) {
     .filter(Boolean);
 }
 
+function parseBatchSize(batchSizeQuery) {
+  const parsedBatchSize = Number(batchSizeQuery || 25);
+
+  if (Number.isNaN(parsedBatchSize) || parsedBatchSize < 1) {
+    return 25;
+  }
+
+  return Math.min(parsedBatchSize, 100);
+}
+
+function parseOffset(offsetQuery) {
+  const parsedOffset = Number(offsetQuery || 0);
+
+  if (Number.isNaN(parsedOffset) || parsedOffset < 0) {
+    return 0;
+  }
+
+  return Math.floor(parsedOffset);
+}
+
 function parseDays(daysQuery) {
   const parsedDays = Number(daysQuery || 10);
 
@@ -203,7 +271,7 @@ function parseDays(daysQuery) {
     return 10;
   }
 
-  return Math.min(parsedDays, 60);
+  return Math.min(parsedDays, 260);
 }
 
 function buildDateWindow(days) {
@@ -220,4 +288,12 @@ function buildDateWindow(days) {
 
 function formatDate(date) {
   return date.toISOString().slice(0, 10);
+}
+
+function buildIngestionRunNotes(symbolResolution) {
+  if (symbolResolution.mode === "universe-batch") {
+    return `Daily historical EOD update persisted to Supabase. Universe batch offset=${symbolResolution.offset}, batchSize=${symbolResolution.batch_size}.`;
+  }
+
+  return "Daily historical EOD update persisted to Supabase.";
 }
