@@ -12,10 +12,10 @@ let dashboardPeerByTicker = {};
 let dashboardStatus = "Caricamento Focus rialzista...";
 let dashboardInitialLoadDone = false;
 
-export function renderOggi() {
+export function renderDashboard() {
   if (!dashboardInitialLoadDone) {
     dashboardInitialLoadDone = true;
-    setTimeout(() => loadOggiTopSignals(false), 0);
+    setTimeout(() => loadDashboardTopSignals(false), 0);
   }
 
   return `
@@ -24,9 +24,8 @@ export function renderOggi() {
         <p class="eyebrow">Market Study</p>
         <h1>Oggi</h1>
         <p class="subtitle">
-          La Oggi non mostra tutto l'universo Nasdaq/NYSE: seleziona i 10 titoli
-          con più condizioni tecniche che la teoria interpreta come coerenti con momentum
-          o trend rialzista, con finalità esclusivamente istruttiva.
+          Una vista mobile-first sui titoli Nasdaq/NYSE più interessanti da studiare
+          secondo pattern tecnici descrittivi e metriche di confronto. Nessuna raccomandazione operativa.
         </p>
       </div>
     </header>
@@ -36,8 +35,8 @@ export function renderOggi() {
         <div>
           <h2>Focus operativo</h2>
           <p>
-            Cerca qualunque titolo dell'universo Nasdaq/NYSE oppure studia la selezione
-            dei Focus rialzista. Non sono raccomandazioni operative.
+            Cerca un titolo oppure consulta il Focus rialzista calcolato sui segnali tecnici
+            disponibili in Supabase.
           </p>
         </div>
       </div>
@@ -51,12 +50,12 @@ export function renderOggi() {
             type="search"
             placeholder="Esempio: AAPL, Apple, Tesla, JPM..."
             value="${escapeHtmlAttribute(dashboardSearchQuery)}"
-            oninput="searchOggiUniverse(this.value)"
+            oninput="searchDashboardUniverse(this.value)"
           />
         </label>
 
         <div id="dashboard-search-results">
-          ${renderOggiSearchResults()}
+          ${renderDashboardSearchResults()}
         </div>
       </section>
 
@@ -64,7 +63,7 @@ export function renderOggi() {
         <button
           class="button"
           type="button"
-          onclick="refreshOggiUniverseFromUi()"
+          onclick="refreshDashboardUniverseFromUi()"
         >
           Aggiorna universo
         </button>
@@ -72,7 +71,7 @@ export function renderOggi() {
         <button
           class="secondary-button"
           type="button"
-          onclick="loadOggiTopSignals(true)"
+          onclick="loadDashboardTopSignals(true)"
         >
           Aggiorna Focus
         </button>
@@ -89,7 +88,7 @@ export function renderOggi() {
   `;
 }
 
-window.searchOggiUniverse = async function searchOggiUniverse(query) {
+window.searchDashboardUniverse = async function searchDashboardUniverse(query) {
   dashboardSearchQuery = query;
 
   const resultsEl = document.querySelector("#dashboard-search-results");
@@ -100,14 +99,14 @@ window.searchOggiUniverse = async function searchOggiUniverse(query) {
 
   if (!query || query.trim().length < 2) {
     dashboardSearchResults = [];
-    resultsEl.innerHTML = renderOggiSearchResults();
+    resultsEl.innerHTML = renderDashboardSearchResults();
     return;
   }
 
   try {
     const payload = await searchMarketUniverse(query, 20);
     dashboardSearchResults = payload?.data?.records || [];
-    resultsEl.innerHTML = renderOggiSearchResults();
+    resultsEl.innerHTML = renderDashboardSearchResults();
   } catch (error) {
     resultsEl.innerHTML = `
       <section class="audit-box">
@@ -117,7 +116,7 @@ window.searchOggiUniverse = async function searchOggiUniverse(query) {
   }
 };
 
-window.refreshOggiUniverseFromUi = async function refreshOggiUniverseFromUi() {
+window.refreshDashboardUniverseFromUi = async function refreshDashboardUniverseFromUi() {
   const statusEl = document.querySelector("#dashboard-status");
 
   if (statusEl) {
@@ -144,13 +143,13 @@ window.refreshOggiUniverseFromUi = async function refreshOggiUniverseFromUi() {
   }
 };
 
-window.loadOggiTopSignals = async function loadOggiTopSignals(refresh = false) {
+window.loadDashboardTopSignals = async function loadDashboardTopSignals(refresh = false) {
   const statusEl = document.querySelector("#dashboard-status");
   const contentEl = document.querySelector("#dashboard-top-signals");
 
   if (statusEl) {
     statusEl.innerHTML = refresh
-      ? "Ricalcolo Bullish Study Score da pattern tecnici..."
+      ? "Ricalcolo Focus rialzista da pattern tecnici..."
       : "Lettura Focus rialzista da Supabase...";
   }
 
@@ -159,7 +158,7 @@ window.loadOggiTopSignals = async function loadOggiTopSignals(refresh = false) {
     dashboardTopSignals = payload?.data?.records || [];
 
     dashboardStatus = `
-      Top 10 caricati: <strong>${dashboardTopSignals.length}</strong>.
+      Focus caricati: <strong>${dashboardTopSignals.length}</strong>.
       ${payload.disclaimer || ""}
     `;
 
@@ -173,7 +172,7 @@ window.loadOggiTopSignals = async function loadOggiTopSignals(refresh = false) {
 
     await loadPeersForTopSignals();
   } catch (error) {
-    dashboardStatus = `<strong>Errore Top 10:</strong> ${escapeHtml(error.message)}`;
+    dashboardStatus = `<strong>Errore Focus:</strong> ${escapeHtml(error.message)}`;
 
     if (statusEl) {
       statusEl.innerHTML = dashboardStatus;
@@ -181,7 +180,7 @@ window.loadOggiTopSignals = async function loadOggiTopSignals(refresh = false) {
   }
 };
 
-window.openOggiSecurityDetail = function openOggiSecurityDetail(symbol) {
+window.openDashboardSecurityDetail = function openDashboardSecurityDetail(symbol) {
   const normalizedSymbol = String(symbol || "").trim().toUpperCase();
 
   if (!normalizedSymbol) {
@@ -217,7 +216,7 @@ async function loadPeersForTopSignals() {
   }
 }
 
-function renderOggiSearchResults() {
+function renderDashboardSearchResults() {
   if (!dashboardSearchResults.length) {
     return "";
   }
@@ -228,7 +227,7 @@ function renderOggiSearchResults() {
         <button
           class="dashboard-search-result"
           type="button"
-          onclick="openOggiSecurityDetail('${escapeJsString(row.ticker)}')"
+          onclick="openDashboardSecurityDetail('${escapeJsString(row.ticker)}')"
         >
           <strong>${escapeHtml(row.ticker)}</strong>
           <span>${escapeHtml(row.company_name || "n/d")}</span>
@@ -249,10 +248,10 @@ function renderTopSignals() {
   if (!dashboardTopSignals.length) {
     return `
       <section class="note-box">
-        <strong>Nessun Top 10 disponibile.</strong>
+        <strong>Nessun Focus disponibile.</strong>
         <p>
-          Per alimentare questa sezione completa la pipeline:
-          universo Nasdaq/NYSE → storico prezzi → pattern tecnici → ricalcolo Top 10.
+          Completa la pipeline: universo Nasdaq/NYSE → storico prezzi → pattern tecnici
+          → fundamentals-lite → ricalcolo Focus.
         </p>
       </section>
     `;
@@ -294,7 +293,7 @@ function renderTopSignalCard(row, rank) {
 
         <div class="top-score-box">
           <span class="quality-badge quality-badge--ok">
-            Bullish Study Score
+            Study Score
           </span>
           <strong>${formatNumber(row.bullish_score)}</strong>
           <small>${formatValue(row.bullish_signal_count)} segnali</small>
@@ -302,7 +301,6 @@ function renderTopSignalCard(row, rank) {
       </div>
 
       ${renderWhyInTop10(row, reasons)}
-
       ${renderSignalReasons(reasons)}
 
       <section class="embedded-peer-comparison">
@@ -310,7 +308,7 @@ function renderTopSignalCard(row, rank) {
           <div>
             <h4>Confronto peer</h4>
             <p class="muted-text">
-              Confronto diretto tra titolo base e peer disponibili in cache.
+              Confronto diretto su performance, volatilità e posizione nel range a 52 settimane.
             </p>
           </div>
         </div>
@@ -329,7 +327,7 @@ function renderTopSignalCard(row, rank) {
       <button
         class="button"
         type="button"
-        onclick="openOggiSecurityDetail('${escapeJsString(row.ticker)}')"
+        onclick="openDashboardSecurityDetail('${escapeJsString(row.ticker)}')"
       >
         Apri titolo
       </button>
@@ -478,9 +476,8 @@ function renderPeerComparisonMini(peerRows, baseTicker) {
     <section class="note-box peer-fundamentals-note">
       <p>
         <strong>Lettura:</strong>
-        in questa V1 il confronto usa fundamentals-lite derivati da price_history:
-        rendimento, volatilità e posizione nel range a 52 settimane. Non sono ancora
-        fondamentali contabili come P/E, ROE o margini.
+        confronto derivato da price_history interno: rendimento, volatilità e posizione nel range a 52 settimane.
+        Non sono fondamentali contabili.
       </p>
     </section>
   `;
@@ -519,12 +516,26 @@ function formatNumber(value) {
   const numberValue = Number(value);
 
   if (Number.isNaN(numberValue)) {
-    return value;
+    return "n/d";
   }
 
   return new Intl.NumberFormat("it-IT", {
     maximumFractionDigits: 2
   }).format(numberValue);
+}
+
+function formatPercent(value) {
+  if (value === null || value === undefined || value === "") {
+    return "n/d";
+  }
+
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) {
+    return "n/d";
+  }
+
+  return `${formatNumber(numberValue * 100)}%`;
 }
 
 function escapeHtml(value) {
@@ -546,44 +557,4 @@ function escapeJsString(value) {
     .replaceAll("'", "\\'")
     .replaceAll("\n", " ")
     .replaceAll("\r", " ");
-}
-
-function formatMarketCap(value) {
-  if (value === null || value === undefined || value === "") {
-    return "n/d";
-  }
-
-  const numberValue = Number(value);
-
-  if (Number.isNaN(numberValue)) {
-    return "n/d";
-  }
-
-  if (numberValue >= 1_000_000_000_000) {
-    return `${formatNumber(numberValue / 1_000_000_000_000)}T`;
-  }
-
-  if (numberValue >= 1_000_000_000) {
-    return `${formatNumber(numberValue / 1_000_000_000)}B`;
-  }
-
-  if (numberValue >= 1_000_000) {
-    return `${formatNumber(numberValue / 1_000_000)}M`;
-  }
-
-  return formatNumber(numberValue);
-}
-
-function formatPercent(value) {
-  if (value === null || value === undefined || value === "") {
-    return "n/d";
-  }
-
-  const numberValue = Number(value);
-
-  if (Number.isNaN(numberValue)) {
-    return "n/d";
-  }
-
-  return `${formatNumber(numberValue * 100)}%`;
 }
