@@ -11,6 +11,8 @@ const routeLoaders = {
 
   "market/peer-compare-db": () =>
     import("../server/market/peer-compare-db.js"),
+  "market/fundamentals-db": () =>
+    import("../server/market/fundamentals-db.js"),
   "market/universe-db": () =>
     import("../server/market/universe-db.js"),
   "market/top-bullish-signals-db": () =>

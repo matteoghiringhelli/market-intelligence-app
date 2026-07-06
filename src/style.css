@@ -2518,3 +2518,22 @@ p {
     flex-direction: column;
   }
 }
+
+/* =========================================================
+   PEER FUNDAMENTALS MINI TABLE
+   ========================================================= */
+
+.peer-fundamentals-note {
+  margin-top: 10px;
+}
+
+.peer-mini-table th,
+.peer-mini-table td {
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .peer-mini-table {
+    min-width: 760px;
+  }
+}

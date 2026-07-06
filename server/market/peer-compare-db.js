@@ -1,6 +1,7 @@
 import { fetchFmpPeers } from "../providers/fmp-peers.js";
 import { getSupabaseAdminClient } from "../lib/supabase-admin.js";
 import {
+import { getFundamentalsForTickers } from "../lib/fundamentals-repository.js";
   getPeerGroupFromDb,
   upsertPeerGroup
 } from "../lib/peer-congress-repository.js";
@@ -40,12 +41,14 @@ export default async function handler(req, res) {
 
     const latestPrices = await loadLatestPrices(tickers);
     const historySummary = await loadHistorySummary(tickers);
+    const fundamentals = await getFundamentalsForTickers(tickers);
 
     const basePrice = latestPrices.find((row) => row.ticker === symbol) || null;
 
     const rows = tickers.map((ticker) => {
       const price = latestPrices.find((row) => row.ticker === ticker) || null;
       const summary = historySummary.find((row) => row.ticker === ticker) || null;
+      const fundamental = fundamentals.find((row) => row.ticker === ticker) || null;
 
       return {
         ticker,
@@ -64,7 +67,24 @@ export default async function handler(req, res) {
                   Number(basePrice.close)) *
                   100
               )
-            : null
+            : null,
+        fundamentals: fundamental
+          ? {
+              market_cap: fundamental.market_cap,
+              trailing_pe: fundamental.trailing_pe,
+              forward_pe: fundamental.forward_pe,
+              price_to_book: fundamental.price_to_book,
+              profit_margin: fundamental.profit_margin,
+              return_on_equity: fundamental.return_on_equity,
+              debt_to_equity: fundamental.debt_to_equity,
+              current_ratio: fundamental.current_ratio,
+              revenue_growth: fundamental.revenue_growth,
+              gross_margins: fundamental.gross_margins,
+              completeness_score: fundamental.completeness_score,
+              fetched_at: fundamental.fetched_at,
+              source_id: fundamental.source_id
+            }
+          : null
       };
     });
 
