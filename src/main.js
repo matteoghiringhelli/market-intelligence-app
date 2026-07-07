@@ -20,7 +20,7 @@ const NAV_ITEMS = [
   {
     view: "dashboard",
     icon: "D",
-    label: "Dash"
+    label: "Dashboard"
   },
   {
     view: "security-detail",
