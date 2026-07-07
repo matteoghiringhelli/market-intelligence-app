@@ -4,46 +4,47 @@
    ========================================================= */
 
 :root {
-  --app-bg: #f8*afc;
-  --app-surface: rgba(255, 25*, 255, 0.94);
-  --app-border: rgba*148, 163, 184, 0.28);
-  --app-bord*r-strong: rgba(100, 116, 139, 0.38*;
+  --app-bg: #f8fafc;
+  --app-surface: rgba(255, 255, 255, 0.94);
+  --app-border: rgba(148, 163, 184, 0.28);
+  --app-border-strong: rgba(100, 116, 139, 0.38);
   --app-text: #0f172a;
-  --app-m*ted: #64748b;
-  --app-primary: #25*3eb;
-  --app-primary-soft: #dbeafe*
+  --app-muted: #64748b;
+  --app-primary: #2563eb;
+  --app-primary-soft: #dbeafe;
   --app-success: #16a34a;
-  --app*warning: #f59e0b;
-  --app-danger: *dc2626;
+  --app-warning: #f59e0b;
+  --app-danger: #dc2626;
   --app-radius-xl: 28px;
- *--app-radius-lg: 22px;
-  --app-rad*us-md: 16px;
-  --app-shadow-card: * 16px 36px rgba(15, 23, 42, 0.08);*  --app-shadow-soft: 0 8px 22px rg*a(15, 23, 42, 0.06);
-  --app-botto*-nav-height: 78px;
-  --app-safe-bo*tom: env(safe-area-inset-bottom, 0*x);
-  --app-safe-top: env(safe-are*-inset-top, 0px);
+  --app-radius-lg: 22px;
+  --app-radius-md: 16px;
+  --app-shadow-card: 0 16px 36px rgba(15, 23, 42, 0.08);
+  --app-shadow-soft: 0 8px 22px rgba(15, 23, 42, 0.06);
+  --app-bottom-nav-height: 78px;
+  --app-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --app-safe-top: env(safe-area-inset-top, 0px);
 }
 
 html {
-  min-*eight: 100%;
-  background: var(--a*p-bg);
-  -webkit-text-size-adjust:*100%;
+  min-height: 100%;
+  background: var(--app-bg);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  min-height: 100%*
+  min-height: 100%;
   margin: 0;
   background:
-    ra*ial-gradient(circle at top left, r*ba(37, 99, 235, 0.10), transparent*34%),
-    radial-gradient(circle a* top right, rgba(22, 163, 74, 0.08*, transparent 30%),
-    var(--app-*g);
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.10), transparent 34%),
+    radial-gradient(circle at top right, rgba(22, 163, 74, 0.08), transparent 30%),
+    var(--app-bg);
   color: var(--app-text);
-  fo*t-family:
+  font-family:
     -apple-system,
-    B*inkMacSystemFont,
+    BlinkMacSystemFont,
     "SF Pro Text",
     "SF Pro Display",
-    "Segoe*UI",
+    "Segoe UI",
     system-ui,
     sans-serif;
   overscroll-behavior-y: none;
@@ -88,32 +89,32 @@ main {
 /* Header app-like */
 
 .app-header {
-  position: stick*;
+  position: sticky;
   top: 0;
   z-index: 30;
-  margi*: -12px -14px 14px;
+  margin: -12px -14px 14px;
   padding:
-   *calc(12px + var(--app-safe-top))
- *  16px
+    calc(12px + var(--app-safe-top))
+    16px
     12px;
-  background: rgb*(248, 250, 252, 0.88);
-  backdrop-*ilter: blur(18px);
-  -webkit-backd*op-filter: blur(18px);
-  border-bo*tom: 1px solid rgba(226, 232, 240,*0.76);
+  background: rgba(248, 250, 252, 0.88);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.76);
 }
 
 .app-header h1 {
-  margi*: 0;
-  font-size: clamp(30px, 8vw,*40px);
+  margin: 0;
+  font-size: clamp(30px, 8vw, 40px);
   line-height: 0.96;
-  lett*r-spacing: -0.045em;
-  font-weight* 850;
+  letter-spacing: -0.045em;
+  font-weight: 850;
 }
 
 .app-header .subtitle,
-.s*btitle {
+.subtitle {
   max-width: 64ch;
-  marg*n: 8px 0 0;
+  margin: 8px 0 0;
   color: var(--app-muted);
   font-size: 14px;
   line-height: 1.45;
@@ -287,105 +288,6 @@ textarea:focus {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-}
-
-/* Dashboard */
-
-.top-signals-grid {
-  display: grid;
-  gap: 16px;
-}
-
-.top-signals-intro {
-  margin-top: 18px;
-}
-
-.top-signal-card {
-  padding: 16px;
-  box-shadow: var(--app-shadow-card);
-}
-
-.top-score-box {
-  display: grid;
-  gap: 5px;
-  justify-items: end;
-  text-align: right;
-}
-
-.top-score-box strong {
-  color: var(--app-success);
-  font-size: 30px;
-  line-height: 1;
-}
-
-.top-score-box small {
-  color: var(--app-muted);
-}
-
-.why-top10-box,
-.signal-reasons-box,
-.embedded-peer-comparison {
-  margin-top: 14px;
-}
-
-.why-top10-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
-.why-top10-grid > div {
-  border: 1px solid rgba(187, 247, 208, 0.9);
-  border-radius: 18px;
-  padding: 12px;
-  background: #f0fdf4;
-}
-
-.signal-reasons-box li + li {
-  border-top: 1px solid rgba(148, 163, 184, 0.25);
-  padding-top: 10px;
-}
-
-/* Badges */
-
-.quality-badge,
-.mini-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: fit-content;
-  min-height: 26px;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.quality-badge--ok {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.quality-badge--neutral {
-  background: #e0f2fe;
-  color: #075985;
-}
-
-.quality-badge--warning {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.quality-badge--danger {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-.mini-badge {
-  margin-left: 6px;
-  background: #dcfce7;
-  color: #166534;
 }
 
 /* Tables */
