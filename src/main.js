@@ -1,5 +1,7 @@
 import "./style.css";
 import "./mobile-app-shell.css";
+import "./iphone-tabbar.css";
+import "./iphone-tabbar-runtime.js";
 import { renderDisclaimerBanner } from "./components/disclaimer-banner.js";
 import { renderAppNav } from "./components/app-nav.js";
 import { renderHomeOverviewPage } from "./pages/home-overview.js";
