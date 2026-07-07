@@ -1,89 +1,242 @@
 const NAV_ITEMS = [
-  ["dashboard", "⌂", "Oggi"],
-  ["security-detail", "⌕", "Titoli"],
-  ["peer-compare", "◇", "Peer"],
-  ["congress-disclosures", "◎", "Congress"],
-  ["data-quality-panel", "✓", "Qualità"]
+  {
+    view: "home-overview",
+    icon: "O",
+    label: "Oggi"
+  },
+  {
+    view: "security-detail",
+    icon: "T",
+    label: "Titoli"
+  },
+  {
+    view: "peer-compare",
+    icon: "P",
+    label: "Peer"
+  },
+  {
+    view: "congress-disclosures",
+    icon: "C",
+    label: "Congress"
+  },
+  {
+    view: "data-quality-panel",
+    icon: "Q",
+    label: "Qualita"
+  }
 ];
 
-function ensureIphoneTabbar() {
-  if (document.querySelector(".iphone-tabbar")) {
+let currentView = "home-overview";
+
+if (typeof window !== "undefined") {
+  window.openIphoneTab = renderTabView;
+  window.setCurrentView = renderTabView;
+  window.setActiveView = renderTabView;
+  window.navigateToView = renderTabView;
+
+  window.addEventListener("hashchange", () => {
+    const hashView = window.location.hash.replace("#", "");
+
+    if (hashView) {
+      renderTabView(hashView);
+    }
+  });
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => {
+      currentView = normalizeView(window.location.hash.replace("#", ""));
+      ensureIphoneTabbar();
+      updateActiveTab(currentView);
+    });
+  } else {
+    currentView = normalizeView(window.location.hash.replace("#", ""));
+    ensureIphoneTabbar();
+    updateActiveTab(currentView);
+  }
+
+  setTimeout(() => {
+    ensureIphoneTabbar();
+    updateActiveTab(currentView);
+  }, 250);
+}
+
+async function renderTabView(view) {
+  if (typeof document === "undefined") {
     return;
   }
 
-  const nav = document.createElement("nav");
-  nav.className = "iphone-tabbar";
-  nav.setAttribute("aria-label", "Primary");
+  const normalizedView = normalizeView(view);
+  const appRoot = document.querySelector("#app");
 
-  nav.innerHTML = NAV_ITEMS.map(([view, icon, label], index) => {
-    return `
-      <button
-        class="iphone-tabbar__item ${index === 0 ? "iphone-tabbar__item--active" : ""}"
-        type="button"
-        data-view="${view}"
-      >
-        <span class="iphone-tabbar__icon">${icon}</span>
-        <span class="iphone-tabbar__label">${label}</span>
-      </button>
-    `;
-  }).join("");
+  if (!appRoot) {
+    return;
+  }
 
-  nav.addEventListener("click", (event) => {
-    const button = event.target.closest(".iphone-tabbar__item");
+  try {
+    currentView = normalizedView;
+    appRoot.innerHTML = await renderPageHtml(normalizedView);
+    ensureIphoneTabbar();
+    updateActiveTab(normalizedView);
 
-    if (!button) {
-      return;
-    }
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  } catch (error) {
+    renderError(appRoot, error);
+    ensureIphoneTabbar();
+    updateActiveTab(normalizedView);
+  }
+}
 
-    const view = button.dataset.view;
+async function renderPageHtml(view) {
+  if (view === "home-overview") {
+    const module = await import("./pages/home-overview.js");
+    return module.renderHomeOverviewPage();
+  }
 
-    document.querySelectorAll(".iphone-tabbar__item").forEach((item) => {
-      item.classList.toggle("iphone-tabbar__item--active", item === button);
+  if (view === "security-detail") {
+    const pageModule = await import("./pages/security-detail.js");
+    const dataModule = await import("./data/mock-securities.js");
+
+    const security =
+      dataModule.mockSecurities && dataModule.mockSecurities.length
+        ? dataModule.mockSecurities[0]
+        : {
+            symbol: "AAPL",
+            ticker: "AAPL",
+            name: "Apple Inc."
+          };
+
+    return pageModule.renderSecurityDetail(security);
+  }
+
+  if (view === "peer-compare") {
+    const module = await import("./pages/peer-compare.js");
+    return module.renderPeerComparePage();
+  }
+
+  if (view === "congress-disclosures") {
+    const module = await import("./pages/congress-disclosures.js");
+    return module.renderCongressDisclosuresPage();
+  }
+
+  if (view === "data-quality-panel") {
+    const module = await import("./pages/data-quality-panel.js");
+    return module.renderDataQualityPanelPage();
+  }
+
+  const fallbackModule = await import("./pages/home-overview.js");
+  return fallbackModule.renderHomeOverviewPage();
+}
+
+function ensureIphoneTabbar() {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  let nav = document.querySelector(".iphone-tabbar");
+
+  if (!nav) {
+    nav = document.createElement("nav");
+    nav.className = "iphone-tabbar";
+    nav.setAttribute("aria-label", "Primary");
+    document.body.appendChild(nav);
+  }
+
+  nav.replaceChildren();
+
+  NAV_ITEMS.forEach((item) => {
+    const button = document.createElement("button");
+    button.className = "iphone-tabbar__item";
+    button.type = "button";
+    button.dataset.view = item.view;
+    button.setAttribute("aria-label", item.label);
+
+    const icon = document.createElement("span");
+    icon.className = "iphone-tabbar__icon";
+    icon.textContent = item.icon;
+
+    const label = document.createElement("span");
+    label.className = "iphone-tabbar__label";
+    label.textContent = item.label;
+
+    button.appendChild(icon);
+    button.appendChild(label);
+
+    button.addEventListener("click", () => {
+      renderTabView(item.view);
+      history.replaceState(null, "", "#" + item.view);
     });
 
-    if (typeof window.openIphoneTab === "function") {
-      window.openIphoneTab(view);
-      return;
-    }
-
-    if (typeof window.setCurrentView === "function") {
-      window.setCurrentView(view);
-      return;
-    }
-
-    if (typeof window.setActiveView === "function") {
-      window.setActiveView(view);
-      return;
-    }
-
-    if (typeof window.navigateToView === "function") {
-      window.navigateToView(view);
-      return;
-    }
-
-    if (typeof window.renderView === "function") {
-      window.renderView(view);
-      return;
-    }
-
-    window.location.hash = view;
-    window.dispatchEvent(
-      new CustomEvent("app:navigate", {
-        detail: {
-          view
-        }
-      })
-    );
+    nav.appendChild(button);
   });
 
-  document.body.appendChild(nav);
+  updateActiveTab(currentView);
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", ensureIphoneTabbar);
-} else {
-  ensureIphoneTabbar();
+function updateActiveTab(view) {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const normalizedView = normalizeView(view);
+
+  document.querySelectorAll(".iphone-tabbar__item").forEach((button) => {
+    const isActive = button.dataset.view === normalizedView;
+    button.classList.toggle("iphone-tabbar__item--active", isActive);
+
+    if (isActive) {
+      button.setAttribute("aria-current", "page");
+    } else {
+      button.removeAttribute("aria-current");
+    }
+  });
 }
 
-window.addEventListener("app:rendered", ensureIphoneTabbar);
-setTimeout(ensureIphoneTabbar, 250);
+function normalizeView(view) {
+  const value = String(view || "").replace(/^#/, "").trim();
+
+  if (!value || value === "dashboard") {
+    return "home-overview";
+  }
+
+  if (value === "quality") {
+    return "data-quality-panel";
+  }
+
+  if (value === "congress") {
+    return "congress-disclosures";
+  }
+
+  if (value === "titoli" || value === "symbols" || value === "ticker") {
+    return "security-detail";
+  }
+
+  return value;
+}
+
+function renderError(appRoot, error) {
+  appRoot.innerHTML = "";
+
+  const section = document.createElement("section");
+  section.className = "panel";
+
+  const title = document.createElement("h1");
+  title.textContent = "Errore schermata";
+
+  const paragraph = document.createElement("p");
+  paragraph.textContent = "Non e stato possibile aprire la sezione richiesta.";
+
+  const audit = document.createElement("section");
+  audit.className = "audit-box";
+
+  const detail = document.createElement("p");
+  detail.textContent = "Dettaglio: " + String(error && error.message ? error.message : error);
+
+  audit.appendChild(detail);
+  section.appendChild(title);
+  section.appendChild(paragraph);
+  section.appendChild(audit);
+  appRoot.appendChild(section);
+}
