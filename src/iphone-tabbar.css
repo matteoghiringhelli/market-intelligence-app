@@ -217,3 +217,38 @@ code {
     font-size: 8px;
   }
 }
+
+
+.market-refresh-panel {
+  margin-top: 14px;
+}
+
+.market-refresh-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.market-refresh-grid label {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#dashboard-status,
+#market-refresh-status {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 700px) {
+  .market-refresh-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-search-panel,
+  .market-refresh-panel {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}

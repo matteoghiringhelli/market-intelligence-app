@@ -4,6 +4,7 @@ import {
   fetchTopBullishSignals,
   refreshMarketUniverse
 } from "../services/market-universe-api.js";
+import { runMarketRefreshSeries } from "../services/market-refresh-api.js";
 
 let dashboardSearchQuery = "";
 let dashboardSearchResults = [];
@@ -75,6 +76,77 @@ export function renderDashboard() {
         >
           Aggiorna Focus
         </button>
+      </section>
+
+
+      <section class="market-refresh-panel note-box">
+        <h3>Refresh mercato</h3>
+        <p>
+          Aggiorna in sequenza storico, pattern tecnici, fundamentals-lite e Focus.
+          Usa batch piccoli per evitare timeout.
+        </p>
+
+        <div class="market-refresh-grid">
+          <label>
+            <span class="selector-label">Secret</span>
+            <input
+              id="market-refresh-secret"
+              class="manual-operation-input"
+              type="password"
+              placeholder="CRON_SECRET"
+            />
+          </label>
+
+          <label>
+            <span class="selector-label">Offset</span>
+            <input
+              id="market-refresh-offset"
+              class="manual-operation-input"
+              type="number"
+              value="0"
+              min="0"
+              step="10"
+            />
+          </label>
+
+          <label>
+            <span class="selector-label">Batch size</span>
+            <input
+              id="market-refresh-batch-size"
+              class="manual-operation-input"
+              type="number"
+              value="10"
+              min="1"
+              max="50"
+            />
+          </label>
+
+          <label>
+            <span class="selector-label">Numero batch</span>
+            <input
+              id="market-refresh-batches"
+              class="manual-operation-input"
+              type="number"
+              value="1"
+              min="1"
+              max="20"
+            />
+          </label>
+        </div>
+
+        <section class="peer-actions-row">
+          <button
+            class="button"
+            type="button"
+            onclick="runDashboardMarketRefresh()"
+          >
+            Avvia refresh mercato
+          </button>
+        </section>
+
+        <div id="market-refresh-status" class="description-box">
+          Pronto per aggiornare il mercato a batch.
+        </div>
       </section>
 
       <div id="dashboard-status" class="description-box">
@@ -558,3 +630,69 @@ function escapeJsString(value) {
     .replaceAll("\n", " ")
     .replaceAll("\r", " ");
 }
+
+
+window.runDashboardMarketRefresh = async function runDashboardMarketRefresh() {
+  const statusEl = document.querySelector("#market-refresh-status");
+
+  const secret = document.querySelector("#market-refresh-secret")?.value || "";
+  const startOffset = Number(document.querySelector("#market-refresh-offset")?.value || 0);
+  const batchSize = Number(document.querySelector("#market-refresh-batch-size")?.value || 10);
+  const batches = Number(document.querySelector("#market-refresh-batches")?.value || 1);
+
+  if (!secret.trim()) {
+    if (statusEl) {
+      statusEl.innerHTML = "Inserisci CRON_SECRET per avviare il refresh.";
+    }
+    return;
+  }
+
+  if (statusEl) {
+    statusEl.innerHTML = "Refresh mercato avviato...";
+  }
+
+  try {
+    const results = await runMarketRefreshSeries({
+      startOffset,
+      batches,
+      batchSize,
+      days: 260,
+      limit: 260,
+      secret,
+      onProgress: (progress) => {
+        if (!statusEl) {
+          return;
+        }
+
+        if (progress.status === "running") {
+          statusEl.innerHTML = `
+            Batch ${progress.currentBatch}/${progress.totalBatches}
+            in corso. Offset ${progress.offset}.
+          `;
+        }
+
+        if (progress.status === "completed_batch") {
+          const summary = progress.result?.history?.summary;
+
+          statusEl.innerHTML = `
+            Batch ${progress.currentBatch}/${progress.totalBatches}
+            completato. Offset ${progress.offset}.
+            Storico ok: ${summary?.successful_symbols || 0},
+            falliti: ${summary?.failed_symbols || 0}.
+          `;
+        }
+      }
+    });
+
+    if (statusEl) {
+      statusEl.innerHTML = `
+        Refresh completato. Batch eseguiti: <strong>${results.length}</strong>.
+        Premi “Aggiorna Focus” per rileggere la Dashboard.
+      `;
+    }
+  } catch (error) {
+    if (statusEl) {
+      statusEl.innerHTML = `<strong>Errore refresh:</strong> ${escapeHtml(error.message)}`;
+    }
+  }
+};
