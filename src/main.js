@@ -18,29 +18,29 @@ const appRoot = document.querySelector("#app");
 
 const NAV_ITEMS = [
   {
-    view: "home-overview",
-    icon: "⌂",
-    label: "Oggi"
+    view: "dashboard",
+    icon: "D",
+    label: "Dash"
   },
   {
     view: "security-detail",
-    icon: "⌕",
+    icon: "T",
     label: "Titoli"
   },
   {
     view: "peer-compare",
-    icon: "◇",
+    icon: "P",
     label: "Peer"
   },
   {
     view: "congress-disclosures",
-    icon: "◎",
-    label: "Congress"
+    icon: "C",
+    label: "Congr."
   },
   {
     view: "data-quality-panel",
-    icon: "✓",
-    label: "Qualità"
+    icon: "Q",
+    label: "Qualita"
   }
 ];
 
@@ -61,13 +61,13 @@ function renderApp(view = currentView) {
     return;
   }
 
-  appRoot.innerHTML = `
-    ${renderDisclaimerBannerSafe()}
-    <main class="app-screen">
-      ${renderCurrentPage(currentView)}
-    </main>
-    ${renderIphoneTabbar(currentView)}
-  `;
+  appRoot.innerHTML = [
+    renderDisclaimerBannerSafe(),
+    '<main class="app-screen">',
+    renderCurrentPage(currentView),
+    '</main>',
+    renderIphoneTabbar(currentView)
+  ].join("");
 
   attachTabbarListeners();
   window.scrollTo({
@@ -77,12 +77,12 @@ function renderApp(view = currentView) {
 }
 
 function renderCurrentPage(view) {
-  if (view === "home-overview") {
-    return renderHomeOverviewPage();
-  }
-
   if (view === "dashboard") {
     return renderDashboard();
+  }
+
+  if (view === "home-overview") {
+    return renderHomeOverviewPage();
   }
 
   if (view === "security-detail") {
@@ -113,7 +113,7 @@ function renderCurrentPage(view) {
     return renderDataQualityPanelPage();
   }
 
-  return renderHomeOverviewPage();
+  return renderDashboard();
 }
 
 function renderDisclaimerBannerSafe() {
@@ -130,31 +130,31 @@ function renderIphoneTabbar(activeView) {
   const items = NAV_ITEMS.map((item) => {
     const isActive = item.view === normalizedActiveView;
 
-    return `
-      <button
-        class="iphone-tabbar__item ${isActive ? "iphone-tabbar__item--active" : ""}"
-        type="button"
-        data-view="${item.view}"
-        aria-label="${escapeHtml(item.label)}"
-        ${isActive ? 'aria-current="page"' : ""}
-      >
-        <span class="iphone-tabbar__icon">${escapeHtml(item.icon)}</span>
-        <span class="iphone-tabbar__label">${escapeHtml(item.label)}</span>
-      </button>
-    `;
+    return [
+      '<button',
+      ' class="iphone-tabbar__item ' + (isActive ? "iphone-tabbar__item--active" : "") + '"',
+      ' type="button"',
+      ' data-view="' + escapeHtml(item.view) + '"',
+      ' aria-label="' + escapeHtml(item.label) + '"',
+      isActive ? ' aria-current="page"' : "",
+      '>',
+      '<span class="iphone-tabbar__icon">' + escapeHtml(item.icon) + '</span>',
+      '<span class="iphone-tabbar__label">' + escapeHtml(item.label) + '</span>',
+      '</button>'
+    ].join("");
   }).join("");
 
-  return `
-    <nav class="iphone-tabbar" aria-label="Primary">
-      ${items}
-    </nav>
-  `;
+  return [
+    '<nav class="iphone-tabbar" aria-label="Primary">',
+    items,
+    '</nav>'
+  ].join("");
 }
 
 function attachTabbarListeners() {
   document.querySelectorAll(".iphone-tabbar__item").forEach((button) => {
     button.addEventListener("click", () => {
-      const view = button.dataset.view || "home-overview";
+      const view = button.dataset.view || "dashboard";
       navigateToView(view);
     });
   });
@@ -162,7 +162,7 @@ function attachTabbarListeners() {
 
 function navigateToView(view) {
   currentView = normalizeView(view);
-  history.replaceState(null, "", `#${currentView}`);
+  history.replaceState(null, "", "#" + currentView);
   renderApp(currentView);
 }
 
@@ -170,18 +170,18 @@ function normalizeView(view) {
   const value = String(view || "").replace(/^#/, "").trim();
 
   if (!value) {
-    return "home-overview";
+    return "dashboard";
   }
 
-  if (value === "dashboard") {
-    return "home-overview";
+  if (value === "home" || value === "home-overview" || value === "oggi") {
+    return "dashboard";
   }
 
   if (value === "quality") {
     return "data-quality-panel";
   }
 
-  if (value === "congress") {
+  if (value === "congress" || value === "gov") {
     return "congress-disclosures";
   }
 
